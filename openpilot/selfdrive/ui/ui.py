@@ -15,8 +15,12 @@ BIG_UI = gui_app.big_ui()
 
 def main():
   cores = {5, }
-  # above plannerd and radard
-  config_realtime_process(0, Priority.CTRL_HIGH)
+  # BluePilot: revert comma #37984 (5745909e9b43), which raised the UI to CTRL_HIGH (53, above
+  # plannerd/radard). BP's overlay-heavy UI at that RT priority preempts the control processes and
+  # starves them -> "process not communicating" (commIssue), worse with overlays on. Restore the
+  # pre-#37984 priority (CTRL_LOW = 51) so the control loop always wins scheduling. If re-merging
+  # upstream, keep this at CTRL_LOW for BP.
+  config_realtime_process(0, Priority.CTRL_LOW)
 
   gui_app.init_window("UI")
   if BIG_UI:

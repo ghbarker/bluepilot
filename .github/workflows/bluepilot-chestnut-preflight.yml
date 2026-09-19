@@ -1,0 +1,58 @@
+name: BluePilot Chestnut source validation
+
+on:
+  push:
+    branches: [cursor/chestnut-ford-overlay-4d25]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ford-overlay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SKIP_TINYGRAD_COMPILE: '1'
+      UV_PROJECT_ENVIRONMENT: /tmp/bluepilot-venv
+      VIRTUAL_ENV: /tmp/bluepilot-venv
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/opendbc_repo:${{ github.workspace }}/msgq_repo:${{ github.workspace }}/rednose_repo:${{ github.workspace }}/tinygrad_repo
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify preserved Chestnut source and model artifacts
+        run: python3 tools/bluepilot_chestnut/preflight.py
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang build-essential libffi-dev xvfb libgl1-mesa-dri libegl1 libgl1 libgles2
+          python3 -m venv "$RUNNER_TEMP/uv-bootstrap"
+          "$RUNNER_TEMP/uv-bootstrap/bin/pip" install uv
+          export PATH="$RUNNER_TEMP/uv-bootstrap/bin:$PATH"
+          uv sync --locked --extra submodules --extra tools
+          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest pytest-xdist scipy pillow ruff ruamel.yaml jsonschema
+          echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+      - name: Build native consumers and Panda firmware without compiling driving models
+        run: scons --minimal -j4
+      - name: Test upstream and BluePilot Ford safety, control, UI, and integration
+        run: |
+          python -m pytest -q \
+            opendbc_repo/opendbc/safety/tests/test_ford.py \
+            opendbc_repo/opendbc/safety/tests/test_ford_bluepilot.py \
+            opendbc_repo/opendbc/car/ford/tests \
+            opendbc_repo/opendbc/sunnypilot/car/ford/tests \
+            opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
+            openpilot/selfdrive/ui/bp/tests \
+            openpilot/sunnypilot/system/tests/test_params_migration.py \
+            openpilot/sunnypilot/sunnylink/tests/test_settings_changes.py \
+            openpilot/sunnypilot/sunnylink/tests/test_capabilities.py \
+            openpilot/selfdrive/car/tests/test_cruise_speed.py \
+            openpilot/system/hardware/tests/test_fan_controller.py \
+            tools/bluepilot_chestnut
+      - name: Check migrated Python names
+        run: python tools/bluepilot_chestnut/check_python.py
+      - name: Confirm driving-model artifacts are unchanged after the build
+        run: python tools/bluepilot_chestnut/preflight.py --models-only

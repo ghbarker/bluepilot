@@ -1,0 +1,3003 @@
+{
+  "note": "Historical three-way screening inventory before implementation. New-at-mapped-path and clean text merges do not prove compatibility. See README and the current PR diff for the implemented overlay and validation.",
+  "base": "dd29072b71a06c9ce125a481ced431ba995b84f6",
+  "donor": "e22afa6be9b881fa784c92ebb316db47728a3d81",
+  "openpilot_common_ancestor": "01a843e0acbe74d566a7eee9fe0f12f227ae81ed",
+  "opendbc_common_ancestor": "b9712d20efd4fb7b1c29378ee153013d2a32a9f1",
+  "files": [
+    {
+      "source": "BPVERSION",
+      "destination": "BPVERSION",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "BP_CHANGES.json",
+      "destination": "BP_CHANGES.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/README.md",
+      "destination": "bluepilot/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/__init__.py",
+      "destination": "bluepilot/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/README.md",
+      "destination": "bluepilot/backend/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/__init__.py",
+      "destination": "bluepilot/backend/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/bp_portal.py",
+      "destination": "bluepilot/backend/bp_portal.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/cache/__init__.py",
+      "destination": "bluepilot/backend/cache/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/cache/cleanup.py",
+      "destination": "bluepilot/backend/cache/cleanup.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/cache/metrics.py",
+      "destination": "bluepilot/backend/cache/metrics.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/config.py",
+      "destination": "bluepilot/backend/config.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/core/__init__.py",
+      "destination": "bluepilot/backend/core/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/core/lifecycle.py",
+      "destination": "bluepilot/backend/core/lifecycle.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/core/logging_handler.py",
+      "destination": "bluepilot/backend/core/logging_handler.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/core/process_manager.py",
+      "destination": "bluepilot/backend/core/process_manager.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/core/server_state.py",
+      "destination": "bluepilot/backend/core/server_state.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/handlers/__init__.py",
+      "destination": "bluepilot/backend/handlers/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/handlers/log_downloads.py",
+      "destination": "bluepilot/backend/handlers/log_downloads.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/logs/__init__.py",
+      "destination": "bluepilot/backend/logs/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/logs/cereal.py",
+      "destination": "bluepilot/backend/logs/cereal.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/logs/extraction.py",
+      "destination": "bluepilot/backend/logs/extraction.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/logs/manager_logs.py",
+      "destination": "bluepilot/backend/logs/manager_logs.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/network/__init__.py",
+      "destination": "bluepilot/backend/network/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/network/utils.py",
+      "destination": "bluepilot/backend/network/utils.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/params/__init__.py",
+      "destination": "bluepilot/backend/params/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/params/params_manager.py",
+      "destination": "bluepilot/backend/params/params_manager.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/params/params_watcher.py",
+      "destination": "bluepilot/backend/params/params_watcher.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/realtime/__init__.py",
+      "destination": "bluepilot/backend/realtime/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/realtime/log_streamer.py",
+      "destination": "bluepilot/backend/realtime/log_streamer.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/realtime/websocket.py",
+      "destination": "bluepilot/backend/realtime/websocket.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/route_preprocessor.py",
+      "destination": "bluepilot/backend/route_preprocessor.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/__init__.py",
+      "destination": "bluepilot/backend/routes/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/parsing.py",
+      "destination": "bluepilot/backend/routes/parsing.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/preprocessor.py",
+      "destination": "bluepilot/backend/routes/preprocessor.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/processing.py",
+      "destination": "bluepilot/backend/routes/processing.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/scanner.py",
+      "destination": "bluepilot/backend/routes/scanner.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/segments.py",
+      "destination": "bluepilot/backend/routes/segments.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/routes/utils.py",
+      "destination": "bluepilot/backend/routes/utils.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/storage/__init__.py",
+      "destination": "bluepilot/backend/storage/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/storage/preservation.py",
+      "destination": "bluepilot/backend/storage/preservation.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/system/__init__.py",
+      "destination": "bluepilot/backend/system/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/system/metrics.py",
+      "destination": "bluepilot/backend/system/metrics.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/test_backend_import.py",
+      "destination": "bluepilot/backend/test_backend_import.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/test_modules_only.py",
+      "destination": "bluepilot/backend/test_modules_only.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/utils/__init__.py",
+      "destination": "bluepilot/backend/utils/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/utils/file_ops.py",
+      "destination": "bluepilot/backend/utils/file_ops.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/utils/params_fallback.py",
+      "destination": "bluepilot/backend/utils/params_fallback.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/utils/power.py",
+      "destination": "bluepilot/backend/utils/power.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/video/__init__.py",
+      "destination": "bluepilot/backend/video/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/video/export.py",
+      "destination": "bluepilot/backend/video/export.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/video/ffmpeg.py",
+      "destination": "bluepilot/backend/video/ffmpeg.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/video/metadata.py",
+      "destination": "bluepilot/backend/video/metadata.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend/video/remux.py",
+      "destination": "bluepilot/backend/video/remux.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/backend_switch.py",
+      "destination": "bluepilot/backend_switch.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/logger/bp_logger.py",
+      "destination": "bluepilot/logger/bp_logger.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/params/bp_params.py",
+      "destination": "bluepilot/params/bp_params.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/params/params.json",
+      "destination": "bluepilot/params/params.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/__init__.py",
+      "destination": "bluepilot/selfdrive/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/car/__init__.py",
+      "destination": "bluepilot/selfdrive/car/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/car/bp_card_publisher.py",
+      "destination": "bluepilot/selfdrive/car/bp_card_publisher.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/car/bp_cruise.py",
+      "destination": "bluepilot/selfdrive/car/bp_cruise.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/controls/__init__.py",
+      "destination": "bluepilot/selfdrive/controls/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/selfdrive/controls/bp_desire_helper.py",
+      "destination": "bluepilot/selfdrive/controls/bp_desire_helper.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/setup_web_routes.py",
+      "destination": "bluepilot/setup_web_routes.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/system/__init__.py",
+      "destination": "bluepilot/system/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/system/ui/__init__.py",
+      "destination": "bluepilot/system/ui/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/system/ui/lib/__init__.py",
+      "destination": "bluepilot/system/ui/lib/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/system/ui/lib/bp_wifi.py",
+      "destination": "bluepilot/system/ui/lib/bp_wifi.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/test_web_routes.py",
+      "destination": "bluepilot/test_web_routes.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/__init__.py",
+      "destination": "bluepilot/ui/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/layouts/home_bp.py",
+      "destination": "bluepilot/ui/layouts/home_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/lib/__init__.py",
+      "destination": "bluepilot/ui/lib/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/lib/bp_shaders.py",
+      "destination": "bluepilot/ui/lib/bp_shaders.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/lib/colors.py",
+      "destination": "bluepilot/ui/lib/colors.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/lib/constants.py",
+      "destination": "bluepilot/ui/lib/constants.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/__init__.py",
+      "destination": "bluepilot/ui/widgets/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/__init__.py",
+      "destination": "bluepilot/ui/widgets/debug/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/angle_factor_adjuster.py",
+      "destination": "bluepilot/ui/widgets/debug/angle_factor_adjuster.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/controls_debug_panel.py",
+      "destination": "bluepilot/ui/widgets/debug/controls_debug_panel.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/debug_colors.py",
+      "destination": "bluepilot/ui/widgets/debug/debug_colors.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/debug_graph.py",
+      "destination": "bluepilot/ui/widgets/debug/debug_graph.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/lateral_debug_panel.py",
+      "destination": "bluepilot/ui/widgets/debug/lateral_debug_panel.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/long_debug_panel.py",
+      "destination": "bluepilot/ui/widgets/debug/long_debug_panel.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/debug/other_debug_panel.py",
+      "destination": "bluepilot/ui/widgets/debug/other_debug_panel.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/drive_stats.py",
+      "destination": "bluepilot/ui/widgets/drive_stats.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/icon_button.py",
+      "destination": "bluepilot/ui/widgets/icon_button.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/metric_card.py",
+      "destination": "bluepilot/ui/widgets/metric_card.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/model_info.py",
+      "destination": "bluepilot/ui/widgets/model_info.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/network_card.py",
+      "destination": "bluepilot/ui/widgets/network_card.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/recent_changes.py",
+      "destination": "bluepilot/ui/widgets/recent_changes.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/ui/widgets/sidebar.py",
+      "destination": "bluepilot/ui/widgets/sidebar.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/.eslintrc.cjs",
+      "destination": "bluepilot/web/.eslintrc.cjs",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/.gitignore",
+      "destination": "bluepilot/web/.gitignore",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/README.md",
+      "destination": "bluepilot/web/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/index.html",
+      "destination": "bluepilot/web/index.html",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/package-lock.json",
+      "destination": "bluepilot/web/package-lock.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/package.json",
+      "destination": "bluepilot/web/package.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/assets/index-BpwRzE6Z.js",
+      "destination": "bluepilot/web/public/assets/index-BpwRzE6Z.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/assets/index-BtyvOnug.css",
+      "destination": "bluepilot/web/public/assets/index-BtyvOnug.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/apple-touch-icon.png",
+      "destination": "bluepilot/web/public/icons/apple-touch-icon.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/favicon.png",
+      "destination": "bluepilot/web/public/icons/favicon.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-128.png",
+      "destination": "bluepilot/web/public/icons/icon-128.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-144.png",
+      "destination": "bluepilot/web/public/icons/icon-144.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-152.png",
+      "destination": "bluepilot/web/public/icons/icon-152.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-192.png",
+      "destination": "bluepilot/web/public/icons/icon-192.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-384.png",
+      "destination": "bluepilot/web/public/icons/icon-384.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-512.png",
+      "destination": "bluepilot/web/public/icons/icon-512.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-72.png",
+      "destination": "bluepilot/web/public/icons/icon-72.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/icons/icon-96.png",
+      "destination": "bluepilot/web/public/icons/icon-96.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/index.html",
+      "destination": "bluepilot/web/public/index.html",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/manifest.webmanifest",
+      "destination": "bluepilot/web/public/manifest.webmanifest",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/registerSW.js",
+      "destination": "bluepilot/web/public/registerSW.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/sw.js",
+      "destination": "bluepilot/web/public/sw.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/README.md",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/decoder.js",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/decoder.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/decoder.wasm",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/decoder.wasm",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/pcm-player.js",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/pcm-player.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/player.js",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/player.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/h265-web-player/webgl.js",
+      "destination": "bluepilot/web/public/vendor/h265-web-player/webgl.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/hls/README.md",
+      "destination": "bluepilot/web/public/vendor/hls/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/hls/hls.min.js",
+      "destination": "bluepilot/web/public/vendor/hls/hls.min.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/hls/hls.min.js.map",
+      "destination": "bluepilot/web/public/vendor/hls/hls.min.js.map",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/material-icons.css",
+      "destination": "bluepilot/web/public/vendor/material-icons.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/vendor/material-icons.ttf",
+      "destination": "bluepilot/web/public/vendor/material-icons.ttf",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/public/workbox-61fbeec5.js",
+      "destination": "bluepilot/web/public/workbox-61fbeec5.js",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/scripts/generate-icons.sh",
+      "destination": "bluepilot/web/scripts/generate-icons.sh",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/App.tsx",
+      "destination": "bluepilot/web/src/App.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/BackToTop.css",
+      "destination": "bluepilot/web/src/components/common/BackToTop.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/BackToTop.tsx",
+      "destination": "bluepilot/web/src/components/common/BackToTop.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Button.css",
+      "destination": "bluepilot/web/src/components/common/Button.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Button.tsx",
+      "destination": "bluepilot/web/src/components/common/Button.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/ConfirmDialog.css",
+      "destination": "bluepilot/web/src/components/common/ConfirmDialog.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/ConfirmDialog.tsx",
+      "destination": "bluepilot/web/src/components/common/ConfirmDialog.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Icon.css",
+      "destination": "bluepilot/web/src/components/common/Icon.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Icon.tsx",
+      "destination": "bluepilot/web/src/components/common/Icon.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/InputDialog.css",
+      "destination": "bluepilot/web/src/components/common/InputDialog.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/InputDialog.tsx",
+      "destination": "bluepilot/web/src/components/common/InputDialog.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/LoadingSpinner.css",
+      "destination": "bluepilot/web/src/components/common/LoadingSpinner.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/LoadingSpinner.tsx",
+      "destination": "bluepilot/web/src/components/common/LoadingSpinner.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Modal.css",
+      "destination": "bluepilot/web/src/components/common/Modal.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Modal.tsx",
+      "destination": "bluepilot/web/src/components/common/Modal.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/StatusOverlay.css",
+      "destination": "bluepilot/web/src/components/common/StatusOverlay.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/StatusOverlay.tsx",
+      "destination": "bluepilot/web/src/components/common/StatusOverlay.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Tabs.css",
+      "destination": "bluepilot/web/src/components/common/Tabs.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Tabs.tsx",
+      "destination": "bluepilot/web/src/components/common/Tabs.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Toast.css",
+      "destination": "bluepilot/web/src/components/common/Toast.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/Toast.tsx",
+      "destination": "bluepilot/web/src/components/common/Toast.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/WarningBanners.css",
+      "destination": "bluepilot/web/src/components/common/WarningBanners.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/WarningBanners.tsx",
+      "destination": "bluepilot/web/src/components/common/WarningBanners.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/controls/ControlCard.css",
+      "destination": "bluepilot/web/src/components/common/controls/ControlCard.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/controls/ControlCard.tsx",
+      "destination": "bluepilot/web/src/components/common/controls/ControlCard.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/controls/ToggleSwitch.css",
+      "destination": "bluepilot/web/src/components/common/controls/ToggleSwitch.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/controls/ToggleSwitch.tsx",
+      "destination": "bluepilot/web/src/components/common/controls/ToggleSwitch.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/common/index.ts",
+      "destination": "bluepilot/web/src/components/common/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/dashboard/DriveStatsCard.css",
+      "destination": "bluepilot/web/src/components/dashboard/DriveStatsCard.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/dashboard/DriveStatsCard.tsx",
+      "destination": "bluepilot/web/src/components/dashboard/DriveStatsCard.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/diagnostics/DiagnosticsParameters.tsx",
+      "destination": "bluepilot/web/src/components/diagnostics/DiagnosticsParameters.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/diagnostics/DiagnosticsTmux.tsx",
+      "destination": "bluepilot/web/src/components/diagnostics/DiagnosticsTmux.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/diagnostics/index.ts",
+      "destination": "bluepilot/web/src/components/diagnostics/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/layout/Header.css",
+      "destination": "bluepilot/web/src/components/layout/Header.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/layout/Header.tsx",
+      "destination": "bluepilot/web/src/components/layout/Header.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/modals/MetricsModal.css",
+      "destination": "bluepilot/web/src/components/modals/MetricsModal.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/modals/MetricsModal.tsx",
+      "destination": "bluepilot/web/src/components/modals/MetricsModal.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/modals/RouteDownloadModal.css",
+      "destination": "bluepilot/web/src/components/modals/RouteDownloadModal.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/modals/RouteDownloadModal.tsx",
+      "destination": "bluepilot/web/src/components/modals/RouteDownloadModal.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/modals/index.ts",
+      "destination": "bluepilot/web/src/components/modals/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/BackupRestore.css",
+      "destination": "bluepilot/web/src/components/settings/BackupRestore.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/BackupRestore.tsx",
+      "destination": "bluepilot/web/src/components/settings/BackupRestore.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/ChangesSummaryModal.css",
+      "destination": "bluepilot/web/src/components/settings/ChangesSummaryModal.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/ChangesSummaryModal.tsx",
+      "destination": "bluepilot/web/src/components/settings/ChangesSummaryModal.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/DynamicControl.css",
+      "destination": "bluepilot/web/src/components/settings/DynamicControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/DynamicControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/DynamicControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/FavoritesPanel.css",
+      "destination": "bluepilot/web/src/components/settings/FavoritesPanel.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/FavoritesPanel.tsx",
+      "destination": "bluepilot/web/src/components/settings/FavoritesPanel.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/FloatingChangesIndicator.css",
+      "destination": "bluepilot/web/src/components/settings/FloatingChangesIndicator.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/FloatingChangesIndicator.tsx",
+      "destination": "bluepilot/web/src/components/settings/FloatingChangesIndicator.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/PanelGroup.css",
+      "destination": "bluepilot/web/src/components/settings/PanelGroup.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/PanelGroup.tsx",
+      "destination": "bluepilot/web/src/components/settings/PanelGroup.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/CommandButton.css",
+      "destination": "bluepilot/web/src/components/settings/controls/CommandButton.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/CommandButton.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/CommandButton.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/FileViewer.css",
+      "destination": "bluepilot/web/src/components/settings/controls/FileViewer.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/FileViewer.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/FileViewer.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/NumberControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/NumberControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/NumberControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/NumberControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/PlatformDisplayControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/PlatformDisplayControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/PlatformDisplayControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/PlatformDisplayControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/RecentChangesControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/RecentChangesControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/RecentChangesControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/RecentChangesControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/RestartUIControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/RestartUIControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/RestartUIControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/RestartUIControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/SegmentedControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/SegmentedControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/SegmentedControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/SegmentedControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/SelectionControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/SelectionControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/SelectionControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/SelectionControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/StaticParamDisplayControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/StaticParamDisplayControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/StaticParamDisplayControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/StaticParamDisplayControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/StaticTextControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/StaticTextControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/StaticTextControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/StaticTextControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/ToggleControl.css",
+      "destination": "bluepilot/web/src/components/settings/controls/ToggleControl.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/ToggleControl.tsx",
+      "destination": "bluepilot/web/src/components/settings/controls/ToggleControl.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/settings/controls/index.ts",
+      "destination": "bluepilot/web/src/components/settings/controls/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/storage/DiskSpaceVisualization.css",
+      "destination": "bluepilot/web/src/components/storage/DiskSpaceVisualization.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/storage/DiskSpaceVisualization.tsx",
+      "destination": "bluepilot/web/src/components/storage/DiskSpaceVisualization.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/CameraSelector.css",
+      "destination": "bluepilot/web/src/components/video/CameraSelector.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/CameraSelector.tsx",
+      "destination": "bluepilot/web/src/components/video/CameraSelector.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/Timeline.css",
+      "destination": "bluepilot/web/src/components/video/Timeline.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/Timeline.tsx",
+      "destination": "bluepilot/web/src/components/video/Timeline.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/VideoPlayer.css",
+      "destination": "bluepilot/web/src/components/video/VideoPlayer.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/VideoPlayer.tsx",
+      "destination": "bluepilot/web/src/components/video/VideoPlayer.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/VideoPlayer.tsx.backup",
+      "destination": "bluepilot/web/src/components/video/VideoPlayer.tsx.backup",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/CerealDataPanel.tsx",
+      "destination": "bluepilot/web/src/components/video/panels/CerealDataPanel.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/FFmpegDebugPanel.tsx",
+      "destination": "bluepilot/web/src/components/video/panels/FFmpegDebugPanel.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/LogsPanel.tsx",
+      "destination": "bluepilot/web/src/components/video/panels/LogsPanel.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/Panels.css",
+      "destination": "bluepilot/web/src/components/video/panels/Panels.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/VehicleInfoPanel.tsx",
+      "destination": "bluepilot/web/src/components/video/panels/VehicleInfoPanel.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/components/video/panels/index.ts",
+      "destination": "bluepilot/web/src/components/video/panels/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/contexts/SettingsContext.tsx",
+      "destination": "bluepilot/web/src/contexts/SettingsContext.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/contexts/index.ts",
+      "destination": "bluepilot/web/src/contexts/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/hooks/index.ts",
+      "destination": "bluepilot/web/src/hooks/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/hooks/useStagedParam.ts",
+      "destination": "bluepilot/web/src/hooks/useStagedParam.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/hooks/useUnsavedChangesWarning.ts",
+      "destination": "bluepilot/web/src/hooks/useUnsavedChangesWarning.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/main.tsx",
+      "destination": "bluepilot/web/src/main.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/services/api.ts",
+      "destination": "bluepilot/web/src/services/api.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/services/panelAPI.ts",
+      "destination": "bluepilot/web/src/services/panelAPI.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/services/websocket.ts",
+      "destination": "bluepilot/web/src/services/websocket.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useChangeTrackingStore.ts",
+      "destination": "bluepilot/web/src/stores/useChangeTrackingStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useExportStore.ts",
+      "destination": "bluepilot/web/src/stores/useExportStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useFFmpegDebugStore.ts",
+      "destination": "bluepilot/web/src/stores/useFFmpegDebugStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useFavoritesStore.ts",
+      "destination": "bluepilot/web/src/stores/useFavoritesStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/usePanelStateStore.ts",
+      "destination": "bluepilot/web/src/stores/usePanelStateStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/usePanelsStore.ts",
+      "destination": "bluepilot/web/src/stores/usePanelsStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useParamsStore.ts",
+      "destination": "bluepilot/web/src/stores/useParamsStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useRoutesStore.ts",
+      "destination": "bluepilot/web/src/stores/useRoutesStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useSystemStore.ts",
+      "destination": "bluepilot/web/src/stores/useSystemStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useToastStore.ts",
+      "destination": "bluepilot/web/src/stores/useToastStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/stores/useWebSocketStore.ts",
+      "destination": "bluepilot/web/src/stores/useWebSocketStore.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/styles/App.css",
+      "destination": "bluepilot/web/src/styles/App.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/styles/variables.css",
+      "destination": "bluepilot/web/src/styles/variables.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/types/index.ts",
+      "destination": "bluepilot/web/src/types/index.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/types/panels.ts",
+      "destination": "bluepilot/web/src/types/panels.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/utils/ansiParser.ts",
+      "destination": "bluepilot/web/src/utils/ansiParser.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/utils/conditionalEvaluator.ts",
+      "destination": "bluepilot/web/src/utils/conditionalEvaluator.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/utils/format.ts",
+      "destination": "bluepilot/web/src/utils/format.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/utils/params.ts",
+      "destination": "bluepilot/web/src/utils/params.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/utils/videoPlayback.ts",
+      "destination": "bluepilot/web/src/utils/videoPlayback.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/Home.css",
+      "destination": "bluepilot/web/src/views/Home.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/Home.tsx",
+      "destination": "bluepilot/web/src/views/Home.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/LogsView.css",
+      "destination": "bluepilot/web/src/views/LogsView.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/LogsView.tsx",
+      "destination": "bluepilot/web/src/views/LogsView.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/ParametersView.css",
+      "destination": "bluepilot/web/src/views/ParametersView.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/ParametersView.tsx",
+      "destination": "bluepilot/web/src/views/ParametersView.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/RoutesView.css",
+      "destination": "bluepilot/web/src/views/RoutesView.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/RoutesView.tsx",
+      "destination": "bluepilot/web/src/views/RoutesView.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/SettingsView.css",
+      "destination": "bluepilot/web/src/views/SettingsView.css",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/src/views/SettingsView.tsx",
+      "destination": "bluepilot/web/src/views/SettingsView.tsx",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/tsconfig.json",
+      "destination": "bluepilot/web/tsconfig.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/tsconfig.node.json",
+      "destination": "bluepilot/web/tsconfig.node.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "bluepilot/web/vite.config.ts",
+      "destination": "bluepilot/web/vite.config.ts",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "cereal/custom.capnp",
+      "destination": "openpilot/cereal/custom.capnp",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "cereal/log.capnp",
+      "destination": "openpilot/cereal/log.capnp",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "cereal/services.py",
+      "destination": "openpilot/cereal/services.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "common/bluepilot.py",
+      "destination": "openpilot/common/bluepilot.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "common/bp_spinner.py",
+      "destination": "openpilot/common/bp_spinner.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "common/model.h",
+      "destination": "openpilot/common/model.h",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "common/params_keys.h",
+      "destination": "openpilot/common/params_keys.h",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/README.md",
+      "destination": "openpilot/selfdrive/assets/bp_themes/README.md",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/april_fools/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/april_fools/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/april_fools/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/april_fools/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/april_fools/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/april_fools/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/april_fools/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/april_fools/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/christmas_week/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/christmas_week/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/christmas_week/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/christmas_week/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/christmas_week/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/christmas_week/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/christmas_week/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/christmas_week/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/cinco_de_mayo/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/cinco_de_mayo/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/cinco_de_mayo/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/cinco_de_mayo/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/cinco_de_mayo/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/cinco_de_mayo/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/cinco_de_mayo/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/cinco_de_mayo/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/easter_week/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/easter_week/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/easter_week/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/easter_week/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/easter_week/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/easter_week/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/easter_week/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/easter_week/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/fourth_of_july/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/fourth_of_july/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/fourth_of_july/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/fourth_of_july/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/fourth_of_july/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/fourth_of_july/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/fourth_of_july/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/fourth_of_july/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/halloween_week/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/halloween_week/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/halloween_week/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/halloween_week/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/halloween_week/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/halloween_week/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/halloween_week/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/halloween_week/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/new_years/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/new_years/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/new_years/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/new_years/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/new_years/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/new_years/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/new_years/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/new_years/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/st_patricks_day/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/st_patricks_day/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/st_patricks_day/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/st_patricks_day/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/st_patricks_day/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/st_patricks_day/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/st_patricks_day/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/st_patricks_day/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/thanksgiving_week/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/thanksgiving_week/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/thanksgiving_week/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/thanksgiving_week/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/thanksgiving_week/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/thanksgiving_week/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/thanksgiving_week/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/thanksgiving_week/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/valentines_day/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/valentines_day/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/valentines_day/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/valentines_day/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/valentines_day/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/valentines_day/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/valentines_day/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/valentines_day/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/veterans_day/colors/colors.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/veterans_day/colors/colors.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/veterans_day/scene.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/veterans_day/scene.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/veterans_day/season.json",
+      "destination": "openpilot/selfdrive/assets/bp_themes/veterans_day/season.json",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/bp_themes/veterans_day/steering_wheel/wheel.png",
+      "destination": "openpilot/selfdrive/assets/bp_themes/veterans_day/steering_wheel/wheel.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/onroad/bookmark_fill.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/onroad/bookmark_fill.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/onroad/driver_monitoring/dm_center.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/onroad/driver_monitoring/dm_center.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/settings/car_icon.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/settings/car_icon.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/settings/charge_icon.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/settings/charge_icon.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/settings/device/language.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/settings/device/language.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/back_new.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/back_new.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/medium_button_bg.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/medium_button_bg.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/medium_button_pressed_bg.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/medium_button_pressed_bg.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/reset/small_button.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/reset/small_button.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/reset/small_button_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/reset/small_button_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/reset/wide_button.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/reset/wide_button.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/reset/wide_button_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/reset/wide_button_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/scroll_down_indicator.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/scroll_down_indicator.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/small_red_pill.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/small_red_pill.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/small_red_pill_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/small_red_pill_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/small_slider/slider_bg.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_bg.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/small_slider/slider_red_circle.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_red_circle.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/small_slider/slider_red_circle_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/small_slider/slider_red_circle_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/smaller_button.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/smaller_button.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/smaller_button_disabled.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/smaller_button_disabled.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/smaller_button_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/smaller_button_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/widish_button.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/widish_button.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/widish_button_disabled.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/widish_button_disabled.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/icons_mici/setup/widish_button_pressed.png",
+      "destination": "openpilot/selfdrive/assets/icons_mici/setup/widish_button_pressed.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/images/button_fan.png",
+      "destination": "openpilot/selfdrive/assets/images/button_fan.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/images/button_settings2.png",
+      "destination": "openpilot/selfdrive/assets/images/button_settings2.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/images/spinner_bluepilot.png",
+      "destination": "openpilot/selfdrive/assets/images/spinner_bluepilot.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/img_bluepilot_boot.jpg",
+      "destination": "openpilot/selfdrive/assets/img_bluepilot_boot.jpg",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/img_bluepilot_boot_mici.jpg",
+      "destination": "openpilot/selfdrive/assets/img_bluepilot_boot_mici.jpg",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/offroad/icon_debug.png",
+      "destination": "openpilot/selfdrive/assets/offroad/icon_debug.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/offroad/icon_flag.png",
+      "destination": "openpilot/selfdrive/assets/offroad/icon_flag.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/offroad/icon_settings.png",
+      "destination": "openpilot/selfdrive/assets/offroad/icon_settings.png",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/sounds/bluepilot/tesla_disengage.wav",
+      "destination": "openpilot/selfdrive/assets/sounds/bluepilot/tesla_disengage.wav",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/sounds/bluepilot/tesla_engage.wav",
+      "destination": "openpilot/selfdrive/assets/sounds/bluepilot/tesla_engage.wav",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/assets/sounds/bluepilot/tesla_warning.wav",
+      "destination": "openpilot/selfdrive/assets/sounds/bluepilot/tesla_warning.wav",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/car/card.py",
+      "destination": "openpilot/selfdrive/car/card.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/car/cruise.py",
+      "destination": "openpilot/selfdrive/car/cruise.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/car/helpers.py",
+      "destination": "openpilot/selfdrive/car/helpers.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/controls/lib/desire_helper.py",
+      "destination": "openpilot/selfdrive/controls/lib/desire_helper.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/selfdrived/selfdrived.py",
+      "destination": "openpilot/selfdrive/selfdrived/selfdrived.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/bp/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/layouts/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/layouts/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/layouts/settings/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/layouts/settings/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/layouts/settings/bluepilot.py",
+      "destination": "openpilot/selfdrive/ui/bp/layouts/settings/bluepilot.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/layouts/settings/bp_web_panel.py",
+      "destination": "openpilot/selfdrive/ui/bp/layouts/settings/bp_web_panel.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/custom_sound.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/custom_sound.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/dm_icon_style.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/dm_icon_style.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/int_enum_param.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/int_enum_param.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/steering_wheel_style.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/steering_wheel_style.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/theme_pack.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/theme_pack.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/theme_scene.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/theme_scene.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/theme_scene_assets.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/theme_scene_assets.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/ui_debug_logger.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/ui_debug_logger.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/lib/wifi_favorite.py",
+      "destination": "openpilot/selfdrive/ui/bp/lib/wifi_favorite.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/home.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/home.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/audio_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/audio_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/bluepilot.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/bluepilot.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/lateral_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/lateral_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/longitudinal_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/longitudinal_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/system_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/system_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/vehicle_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/vehicle_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/layouts/settings/visuals_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/layouts/settings/visuals_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/augmented_road_view_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/augmented_road_view_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/cameraview_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/cameraview_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/complication.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/complication.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/confidence_ball_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/confidence_ball_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/hud_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/hud_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/lateral_debug_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/lateral_debug_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/model_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/model_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/powerflow_gauge.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/powerflow_gauge.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/rad_racer_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/rad_racer_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/onroad/torque_bar_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/onroad/torque_bar_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/big_input_dialog_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/big_input_dialog_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/button_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/button_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/connect_backend_select.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/connect_backend_select.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/floatbutton.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/floatbutton.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/keyboard_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/keyboard_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/preferred_network_select.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/preferred_network_select.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/vehicle_select_mici.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/vehicle_select_mici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/mici/widgets/web_server_qr_dialog.py",
+      "destination": "openpilot/selfdrive/ui/bp/mici/widgets/web_server_qr_dialog.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/alert_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/alert_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/augmented_road_view_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/augmented_road_view_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/blindspot_renderer.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/blindspot_renderer.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/cameraview_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/cameraview_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/chevron_metrics_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/chevron_metrics_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/driver_state_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/driver_state_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/exp_button_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/exp_button_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/hud_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/hud_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/hybrid_battery_gauge.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/hybrid_battery_gauge.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/hybrid_battery_gauge_arched.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/hybrid_battery_gauge_arched.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/model_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/model_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/power_flow_gauge.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/power_flow_gauge.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/powerflow_gauge.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/powerflow_gauge.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/powerflow_gauge_arched.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/powerflow_gauge_arched.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/rad_racer_assets.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/rad_racer_assets.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/rad_racer_road.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/rad_racer_road.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/rad_racer_theme.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/rad_racer_theme.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/torque_bar_renderer_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/torque_bar_renderer_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/onroad/torque_bar_state_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/onroad/torque_bar_state_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/soundd_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/soundd_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/tests/test_soundd_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/tests/test_soundd_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/tests/test_theme_scene.py",
+      "destination": "openpilot/selfdrive/ui/bp/tests/test_theme_scene.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/tests/test_theme_seasonal.py",
+      "destination": "openpilot/selfdrive/ui/bp/tests/test_theme_seasonal.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/tools/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/tools/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/tools/play_engagement_sound.py",
+      "destination": "openpilot/selfdrive/ui/bp/tools/play_engagement_sound.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/__init__.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/float_control_item.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/float_control_item.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/float_input_dialog_tici.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/float_input_dialog_tici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/platform_selector_bp.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/platform_selector_bp.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/section_header.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/section_header.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/bp/widgets/web_server_qr_dialog_tici.py",
+      "destination": "openpilot/selfdrive/ui/bp/widgets/web_server_qr_dialog_tici.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/layouts/main.py",
+      "destination": "openpilot/selfdrive/ui/layouts/main.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/mici/layouts/main.py",
+      "destination": "openpilot/selfdrive/ui/mici/layouts/main.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/mici/widgets/pairing_dialog.py",
+      "destination": "openpilot/selfdrive/ui/mici/widgets/pairing_dialog.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/ui/onroad/colors.py",
+      "destination": "openpilot/selfdrive/ui/onroad/colors.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "selfdrive/ui/soundd.py",
+      "destination": "openpilot/selfdrive/ui/soundd.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/sunnypilot/layouts/settings/settings.py",
+      "destination": "openpilot/selfdrive/ui/sunnypilot/layouts/settings/settings.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/ui/sunnypilot/layouts/settings/vehicle/__init__.py",
+      "destination": "openpilot/selfdrive/ui/sunnypilot/layouts/settings/vehicle/__init__.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/ui/sunnypilot/mici/layouts/settings.py",
+      "destination": "openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/sunnypilot/ui_state.py",
+      "destination": "openpilot/selfdrive/ui/sunnypilot/ui_state.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "selfdrive/ui/ui.py",
+      "destination": "openpilot/selfdrive/ui/ui.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/ui/ui_state.py",
+      "destination": "openpilot/selfdrive/ui/ui_state.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "selfdrive/ui/widgets/pairing_dialog.py",
+      "destination": "openpilot/selfdrive/ui/widgets/pairing_dialog.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/selfdrive/assets/images/spinner_sunnypilot.png",
+      "destination": "openpilot/sunnypilot/selfdrive/assets/images/spinner_sunnypilot.png",
+      "status": "M",
+      "result": "identical"
+    },
+    {
+      "source": "sunnypilot/selfdrive/car/intelligent_cruise_button_management/controller.py",
+      "destination": "openpilot/sunnypilot/selfdrive/car/intelligent_cruise_button_management/controller.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/selfdrive/car/interfaces.py",
+      "destination": "openpilot/sunnypilot/selfdrive/car/interfaces.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/selfdrive/controls/lib/blinker_pause_lateral.py",
+      "destination": "openpilot/sunnypilot/selfdrive/controls/lib/blinker_pause_lateral.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/selfdrive/controls/lib/speed_limit/speed_limit_assist.py",
+      "destination": "openpilot/sunnypilot/selfdrive/controls/lib/speed_limit/speed_limit_assist.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/capabilities.py",
+      "destination": "openpilot/sunnypilot/sunnylink/capabilities.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/docs/README.md",
+      "destination": "openpilot/sunnypilot/sunnylink/docs/README.md",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/settings_ui.json",
+      "destination": "openpilot/sunnypilot/sunnylink/settings_ui.json",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/settings_ui_src/_macros.yaml",
+      "destination": "openpilot/sunnypilot/sunnylink/settings_ui_src/_macros.yaml",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/settings_ui_src/pages/vehicle.yaml",
+      "destination": "openpilot/sunnypilot/sunnylink/settings_ui_src/pages/vehicle.yaml",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "sunnypilot/sunnylink/tests/test_settings_changes.py",
+      "destination": "openpilot/sunnypilot/sunnylink/tests/test_settings_changes.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "sunnypilot/system/params_migration.py",
+      "destination": "openpilot/sunnypilot/system/params_migration.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/athena/registration.py",
+      "destination": "openpilot/system/athena/registration.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/hardware/fan_controller.py",
+      "destination": "openpilot/system/hardware/fan_controller.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "system/hardware/tici/agnos.json",
+      "destination": "openpilot/common/hardware/comma/agnos.json",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/hardware/tici/hardware.py",
+      "destination": "openpilot/common/hardware/comma/hardware.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/manager/bp_build.py",
+      "destination": "openpilot/system/manager/bp_build.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "system/manager/build.py",
+      "destination": "openpilot/system/manager/build.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "system/manager/process_config.py",
+      "destination": "openpilot/system/manager/process_config.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/manager/test/test_build.py",
+      "destination": "openpilot/system/manager/test/test_build.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "system/qcomgpsd/qcomgpsd.py",
+      "destination": "openpilot/system/qcomgpsd/qcomgpsd.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "system/sentry.py",
+      "destination": "openpilot/system/sentry.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "system/ui/bp_spinner.py",
+      "destination": "openpilot/system/ui/bp_spinner.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "system/ui/lib/application.py",
+      "destination": "openpilot/system/ui/lib/application.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "system/ui/lib/networkmanager.py",
+      "destination": "openpilot/system/ui/lib/networkmanager.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "system/ui/lib/wifi_manager.py",
+      "destination": "openpilot/system/ui/lib/wifi_manager.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "third_party/bootstrap/bootstrap-icons.ttf",
+      "destination": "openpilot/third_party/bootstrap/bootstrap-icons.ttf",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/car_helpers.py",
+      "destination": "opendbc_repo/opendbc/car/car_helpers.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/carcontroller.py",
+      "destination": "opendbc_repo/opendbc/car/ford/carcontroller.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/carstate.py",
+      "destination": "opendbc_repo/opendbc/car/ford/carstate.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/fingerprints.py",
+      "destination": "opendbc_repo/opendbc/car/ford/fingerprints.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/interface.py",
+      "destination": "opendbc_repo/opendbc/car/ford/interface.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/radar_interface.py",
+      "destination": "opendbc_repo/opendbc/car/ford/radar_interface.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/tests/test_ford.py",
+      "destination": "opendbc_repo/opendbc/car/ford/tests/test_ford.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/ford/values.py",
+      "destination": "opendbc_repo/opendbc/car/ford/values.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "opendbc_repo/opendbc/car/structs.py",
+      "destination": "opendbc_repo/opendbc/car/structs.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/safety/declarations.h",
+      "destination": "opendbc_repo/opendbc/safety/declarations.h",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/safety/modes/ford.h",
+      "destination": "opendbc_repo/opendbc/safety/modes/ford.h",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "opendbc_repo/opendbc/safety/tests/libsafety/libsafety_py.py",
+      "destination": "opendbc_repo/opendbc/safety/tests/libsafety/libsafety_py.py",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/safety/tests/libsafety/safety.c",
+      "destination": "opendbc_repo/opendbc/safety/tests/libsafety/safety.c",
+      "status": "M",
+      "result": "text-merge-only"
+    },
+    {
+      "source": "opendbc_repo/opendbc/safety/tests/test_ford.py",
+      "destination": "opendbc_repo/opendbc/safety/tests/test_ford.py",
+      "status": "M",
+      "result": "text-conflict"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/carstate_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/carstate_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/fingerprints_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/fingerprints_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/fordcan_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/fordcan_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/hud_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/hud_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/human_turn.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/human_turn.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/icbm.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/icbm.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/interfaces_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/interfaces_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/lane_center_trim.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/lane_center_trim.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/lateral_angle_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/lateral_angle_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/lateral_curv_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/lateral_curv_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/longitudinal_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/longitudinal_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/__init__.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/__init__.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_carstate_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_carstate_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_lane_center_trim.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_lane_center_trim.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_lateral_angle_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_lateral_angle_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_vin_fingerprint.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/tests/test_vin_fingerprint.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/ford/values_ext.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/ford/values_ext.py",
+      "status": "A",
+      "result": "new-at-mapped-path"
+    },
+    {
+      "source": "opendbc_repo/opendbc/sunnypilot/car/interfaces.py",
+      "destination": "opendbc_repo/opendbc/sunnypilot/car/interfaces.py",
+      "status": "M",
+      "result": "text-merge-only"
+    }
+  ]
+}

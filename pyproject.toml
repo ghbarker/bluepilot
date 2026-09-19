@@ -49,6 +49,10 @@ dependencies = [
   "jeepney",
   "zstandard",  # this can go once we're on Python 3.14+
 
+  # BluePilot Portal live updates and process diagnostics
+  "websockets>=12,<16",
+  "psutil",
+
   # ui
   "comma-deps-raylib",
 ]

@@ -15,6 +15,7 @@ from openpilot.common.hardware import HARDWARE, PC
 from openpilot.common.hardware.usb import TYPEC_CC_ORIENTATION_PATH, get_usb_state, is_chestnut_usb_id, read_int
 from openpilot.selfdrive.modeld.helpers import chestnut_compiled
 
+from openpilot.common.bluepilot import is_bluepilot
 from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP, DeviceSP
 
 BACKLIGHT_OFFROAD = 65 if HARDWARE.get_device_type() == "mici" else 50
@@ -75,6 +76,7 @@ class UIState(UIStateSP):
         "testJoystick",
         "rawAudioData",
       ] + self.sm_services_ext
+      + (["carStateBP"] if is_bluepilot() else [])  # BluePilot: hybrid battery and drive data
     )
 
     self.prime_state = PrimeState()

@@ -2,18 +2,31 @@ import pyray as rl
 from enum import IntEnum
 import openpilot.cereal.messaging as messaging
 from openpilot.system.ui.lib.application import gui_app
-from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.layouts.sidebar import Sidebar, SIDEBAR_WIDTH
 from openpilot.selfdrive.ui.layouts.home import HomeLayout
+from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
 from openpilot.selfdrive.ui.layouts.settings.settings import SettingsLayout, PanelType
 from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
 from openpilot.selfdrive.ui.ui_state import device, ui_state
+from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow
-from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
+
+# BluePilot: override sidebar, home layout, onroad overlays, and add debug panel
+from openpilot.common.bluepilot import is_bluepilot
+if is_bluepilot():
+  from bluepilot.ui.widgets.sidebar import SidebarBP as Sidebar
+  from bluepilot.ui.lib.constants import BPConstants
+  SIDEBAR_WIDTH = BPConstants.SIDEBAR_WIDTH
+  from bluepilot.ui.layouts.home_bp import HomeLayoutBP as HomeLayout
+  from openpilot.selfdrive.ui.bp.onroad.augmented_road_view_bp import AugmentedRoadViewBP as AugmentedRoadView
+  from bluepilot.ui.widgets.debug import ControlsDebugPanel
 
 if gui_app.sunnypilot_ui():
   from openpilot.selfdrive.ui.sunnypilot.layouts.settings.settings import SettingsLayoutSP as SettingsLayout
-  from openpilot.selfdrive.ui.sunnypilot.layouts.home import HomeLayoutSP as HomeLayout
+  if not is_bluepilot():
+    from openpilot.selfdrive.ui.sunnypilot.layouts.home import HomeLayoutSP as HomeLayout
+  from openpilot.selfdrive.ui.layouts.settings import settings as _settings_module
+  PanelType = _settings_module.PanelType
 
 
 class MainState(IntEnum):
@@ -44,6 +57,11 @@ class MainLayout(Widget):
     self._sidebar_rect = rl.Rectangle(0, 0, 0, 0)
     self._content_rect = rl.Rectangle(0, 0, 0, 0)
 
+    # BluePilot: debug panel overlay for onroad view
+    if is_bluepilot():
+      self._debug_panel = ControlsDebugPanel()
+      self._debug_toggled_this_frame = False
+
     # Set callbacks
     self._setup_callbacks()
 
@@ -55,20 +73,26 @@ class MainLayout(Widget):
       gui_app.push_widget(self._onboarding_window)
 
   def _render(self, _):
+    if is_bluepilot():
+      self._debug_toggled_this_frame = False
     self._handle_onroad_transition()
     self._render_main_content()
 
   def _setup_callbacks(self):
     self._sidebar.set_callbacks(on_settings=self._on_settings_clicked,
                                 on_flag=self._on_bookmark_clicked,
+                                # BluePilot: sidebar debug and network buttons
+                                **({"on_debug": self._on_debug_clicked,
+                                    "on_network": lambda: self.open_settings(PanelType.NETWORK)} if is_bluepilot() else {}),
                                 open_settings=lambda: self.open_settings(PanelType.TOGGLES))
     self._layouts[MainState.HOME]._setup_widget.set_open_settings_callback(lambda: self.open_settings(PanelType.FIREHOSE))
     self._layouts[MainState.HOME].set_settings_callback(lambda: self.open_settings(PanelType.TOGGLES))
+    # BluePilot: model info click opens Models settings panel
+    if is_bluepilot() and hasattr(self._layouts[MainState.HOME], 'set_model_settings_callback'):
+      self._layouts[MainState.HOME].set_model_settings_callback(lambda: self.open_settings(PanelType.MODELS))
     self._layouts[MainState.SETTINGS].set_callbacks(on_close=self._set_mode_for_state)
-
     for layout in (self._layouts[MainState.ONROAD], self._home_body_layout):
       layout.set_click_callback(self._on_onroad_clicked)
-
     device.add_interactive_timeout_callback(self._set_mode_for_state)
     ui_state.add_on_body_changed_callbacks(self._on_body_changed)
 
@@ -120,7 +144,15 @@ class MainLayout(Widget):
       self._pm.send(service, msg)
 
   def _on_onroad_clicked(self):
+    # BluePilot: suppress onroad clicks when debug panel is visible
+    if is_bluepilot() and (self._debug_toggled_this_frame or self._debug_panel.is_panel_visible):
+      return
     self._sidebar.set_visible(not self._sidebar.is_visible)
+
+  # BluePilot: toggle onroad debug panel from sidebar button
+  def _on_debug_clicked(self):
+    self._debug_panel.toggle_visibility()
+    self._debug_toggled_this_frame = True
 
   def _on_body_changed(self):
     self._layouts[MainState.HOME] = self._home_body_layout if ui_state.is_body else self._home_layout
@@ -133,3 +165,7 @@ class MainLayout(Widget):
 
     content_rect = self._content_rect if self._sidebar.is_visible else self._rect
     self._layouts[self._current_mode].render(content_rect)
+
+    # BluePilot: render debug panel overlay on top of onroad view
+    if is_bluepilot() and self._current_mode == MainState.ONROAD and self._debug_panel.is_panel_visible:
+      self._debug_panel.render(content_rect)
