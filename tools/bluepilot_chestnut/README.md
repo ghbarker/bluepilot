@@ -27,8 +27,9 @@ The overlay includes Ford curvature- and angle-primary control, pinion measureme
 lane centering, human-turn handling, follow-aware longitudinal control, radar/HUD
 extensions, VIN matching and Edge/Mondeo support. BluePilot settings and presentation
 extend the current TICI/MICI interfaces. The current Models and sunnylink panels,
-Body layouts, model processes, Chestnut loading/fallback code, and AGNOS version
-are retained. Portal and its offroad route preprocessor use the new module layout
+Body layouts, model processes, Chestnut inference/fallback code, and AGNOS version
+are retained. The startup readiness correction below is explicitly pinned by
+preflight. Portal and its offroad route preprocessor use the new module layout
 and typed Params API.
 
 The donor's legacy Portal Settings tab references JSON menus that are absent from
@@ -145,6 +146,34 @@ bench, and controlled vehicle evidence before fleet release.
 
 ## Build and validation
 
+### Device startup corrections, 2026-09-19
+
+A comma four/Mach-E installation exposed two migration defects. The BP menu used
+a removed MICI button width method; actual widget rendering now exercises the
+replacement API. The Ford `Steer_Assist_Data` radar path assigned three removed
+`RadarPoint` fields and crashed `card` as soon as a lead appeared. Those assignments
+are removed without changing lead distance, velocity, or track calculations.
+Packed-CAN tests cover detection, tracking, loss, reacquisition, and the camera bus.
+Offline replay of captured CAN reproduced the old crash and completed 6,521 radar
+updates with the correction, including 802 with leads. Some source recording data
+was truncated; these results cover only the readable captured data.
+
+The inherited stock model daemon also waited for `chestnutState` before loading,
+although it is itself the publisher and starts publishing only after model load.
+Startup now reads the same firmware voltage, supply-fault and PCIe-link telemetry
+directly over USB EP0 within the existing wait budget. It preserves the existing
+readiness predicate and rejects missing devices, bad/short reads, power faults,
+low supply voltage, and a link that is not ready. Handles are closed before GPU
+initialization; the probe does not claim an interface, change USB configuration,
+power-cycle the GPU, or initialize tinygrad. The complete corrected modeld and
+probe sources are hash-pinned in preflight; model artifacts remain unchanged.
+
+On-device read-only telemetry confirmed the expected firmware, adequate supply,
+no supply fault, and an L0 link. Model startup and fallback under cold boot,
+power loss, and disconnect still require parked-device testing. This probe does
+not repair or power on an unavailable link. No claim of driving qualification or
+verified resolution of the vehicle's Pre-Collision Assist warning is made.
+
 The packaged release omitted its source build definitions. The 25 restored files
 in `restored_build_inputs.json` come from exact release source/dependency commits,
 including panda `74a0adced421e8b7acd728d0f9988ce225423f13`, msgq
@@ -194,4 +223,5 @@ Do not re-add `prebuilt` without producing and qualifying a matching ARM package
 Target-device build/flash verification, model loading and fallback, current DM,
 brake/cancel/MAIN-OFF behavior, and Ford control traces remain required before
 calling this an install-ready driving release. The upstream destructive release
-script has not been run, and no device installation has been performed.
+script has not been run. The first user installation exposed the issues above;
+installation alone is not qualification of the corrections.

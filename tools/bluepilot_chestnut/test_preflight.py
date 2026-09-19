@@ -4,10 +4,25 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tools.bluepilot_chestnut.preflight import verify_model_files
+from tools.bluepilot_chestnut.preflight import verify_model_files, verify_source_fixes
 
 
 class PreflightTest(unittest.TestCase):
+  def test_startup_source_exception_still_rejects_other_changes(self):
+    with tempfile.TemporaryDirectory() as scratch:
+      root = Path(scratch)
+      name = 'modeld.py'
+      original = b'preserved_inference()\nchecked_startup()\n'
+      expected = {name: hashlib.sha256(original).hexdigest()}
+      (root / name).write_bytes(original.replace(b'\n', b'\r\n'))
+      verify_source_fixes(root, expected)
+      (root / name).write_bytes(original + b'unreviewed_change()\n')
+      with self.assertRaises(ValueError):
+        verify_source_fixes(root, expected)
+      (root / name).unlink()
+      with self.assertRaises(OSError):
+        verify_source_fixes(root, expected)
+
   def test_missing_extra_corrupt_and_misnumbered_model_chunks_are_rejected(self):
     with tempfile.TemporaryDirectory() as scratch:
       root = Path(scratch)
