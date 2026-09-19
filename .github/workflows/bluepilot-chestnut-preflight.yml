@@ -37,11 +37,11 @@ jobs:
           echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
       - name: Build native consumers and Panda firmware without compiling driving models
         run: scons --minimal -j4
-      - name: Test upstream and BluePilot Ford safety, control, UI, and integration
+      - name: Test all vehicle safety hooks and Ford control, UI, and integration
         run: |
           python -m pytest -q \
-            opendbc_repo/opendbc/safety/tests/test_ford.py \
-            opendbc_repo/opendbc/safety/tests/test_ford_bluepilot.py \
+            opendbc_repo/opendbc/safety/tests \
+            --ignore=opendbc_repo/opendbc/safety/tests/misra \
             opendbc_repo/opendbc/car/ford/tests \
             opendbc_repo/opendbc/sunnypilot/car/ford/tests \
             opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
