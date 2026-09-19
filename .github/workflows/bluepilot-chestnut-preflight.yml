@@ -22,8 +22,8 @@ jobs:
           persist-credentials: false
       - name: Fetch pinned reference commits for read-only checks
         run: |
-          git fetch --no-tags --filter=blob:none https://github.com/sunnypilot/sunnypilot.git dd29072b71a06c9ce125a481ced431ba995b84f6
-          git fetch --no-tags --filter=blob:none https://github.com/BluePilotDev/bluepilot.git e22afa6be9b881fa784c92ebb316db47728a3d81
+          git fetch --no-tags --depth=1 https://github.com/sunnypilot/sunnypilot.git dd29072b71a06c9ce125a481ced431ba995b84f6
+          git fetch --no-tags --depth=1 https://github.com/BluePilotDev/bluepilot.git e22afa6be9b881fa784c92ebb316db47728a3d81
       - name: Install standalone Ford safety test dependencies
         run: |
           python3 -m venv /tmp/bluepilot-preflight-venv
