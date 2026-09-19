@@ -202,6 +202,9 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
         .frequency = 20,
         .max_curvature_error = angle_mode ? 0 : (ford_overlay_bp_pinion_curvature ? 150 : 100),
         .curvature_error_min_speed = 10.0,
+        // Ford sends zero curvature while inactive. Seeding from measured
+        // curvature can keep rejecting angle mode's zero-curvature field.
+        .inactive_curvature_is_zero = true,
       };
       bool violation = steer_curvature_cmd_checks(desired, 0, enabled, limits);
       if (angle_mode && enabled) {
