@@ -1,0 +1,82 @@
+{
+  "staging": "dd29072b71a06c9ce125a481ced431ba995b84f6",
+  "directory": "openpilot/selfdrive/modeld/models",
+  "files": {
+    "big_driving_tinygrad.pkl.chunk01of18": {
+      "bytes": 47185920,
+      "sha256": "5aa7be1bbf38c776084e14d47d586017d10b112809dafdc4efb86ea906a019e0"
+    },
+    "big_driving_tinygrad.pkl.chunk02of18": {
+      "bytes": 47185920,
+      "sha256": "6d2b753cf44bbda61dddc0f4b3981bde250a8da095af295f66670863622dd568"
+    },
+    "big_driving_tinygrad.pkl.chunk03of18": {
+      "bytes": 47185920,
+      "sha256": "11b5ab957c7da113245a4cb80852d73b72a670acfe75e4187f0a6fc8a6f288d5"
+    },
+    "big_driving_tinygrad.pkl.chunk04of18": {
+      "bytes": 47185920,
+      "sha256": "4f8bd5d5d6752cf8fb96f1f665b19d52e71837e67749db02b6647b8de559f2a0"
+    },
+    "big_driving_tinygrad.pkl.chunk05of18": {
+      "bytes": 47185920,
+      "sha256": "f113b042a22b679172a0ce831df61ddc8625b6d966fe442e0830a9ea0a768452"
+    },
+    "big_driving_tinygrad.pkl.chunk06of18": {
+      "bytes": 47185920,
+      "sha256": "f4082b652c6506527ec94727ac3c03f6f3d4c42044a2eaed2b90e050eb90094b"
+    },
+    "big_driving_tinygrad.pkl.chunk07of18": {
+      "bytes": 47185920,
+      "sha256": "70dc5842b88bf6d70d48576113d9ca8c0f5d069ee184c003fd04695509832691"
+    },
+    "big_driving_tinygrad.pkl.chunk08of18": {
+      "bytes": 47185920,
+      "sha256": "098c6142fd2efe45f90d60972f098f1caa62cf47354f07de953ed7ea8131d3d9"
+    },
+    "big_driving_tinygrad.pkl.chunk09of18": {
+      "bytes": 47185920,
+      "sha256": "443f794b9bb7a60807e2a7d2ca65ccc5cab295696a242398f29a924857f09d55"
+    },
+    "big_driving_tinygrad.pkl.chunk10of18": {
+      "bytes": 47185920,
+      "sha256": "c240741d3d857f2c1cc2d70efa0beecbc9c4bc9c873c67f32ead6257f60c0640"
+    },
+    "big_driving_tinygrad.pkl.chunk11of18": {
+      "bytes": 47185920,
+      "sha256": "1f55b152ef355095a84bce0181e6ab3e99453c1c4ad16934f21b5601630fc01f"
+    },
+    "big_driving_tinygrad.pkl.chunk12of18": {
+      "bytes": 47185920,
+      "sha256": "ac118b77a661bf558902a8b81e79ea228ad21882ff938f34edec40118ba47638"
+    },
+    "big_driving_tinygrad.pkl.chunk13of18": {
+      "bytes": 47185920,
+      "sha256": "16b8e7fd4907fe6b4901bbf4a3c32051978abd92b078f3e3d5a74961f2c42820"
+    },
+    "big_driving_tinygrad.pkl.chunk14of18": {
+      "bytes": 47185920,
+      "sha256": "8fb1c19f56d50a4ad4076b85cd890346d52aa949186a6caa8e215452604f4f25"
+    },
+    "big_driving_tinygrad.pkl.chunk15of18": {
+      "bytes": 47185920,
+      "sha256": "06e7abfcb79ebf66f2c2641c8d70eae7dede9d376f1f0b0fe1afa44d0c9761a9"
+    },
+    "big_driving_tinygrad.pkl.chunk16of18": {
+      "bytes": 47185920,
+      "sha256": "c98e17e01a7d292bc107352ce60d38ac40943b7f4f1961f9ffd2be0f6bf0fe32"
+    },
+    "big_driving_tinygrad.pkl.chunk17of18": {
+      "bytes": 47185920,
+      "sha256": "14873c2c0f0dd3aebf44c4237c0e443f073dfaaa3a0685de1358ea9180e96623"
+    },
+    "big_driving_tinygrad.pkl.chunk18of18": {
+      "bytes": 7688251,
+      "sha256": "65d853197e97b12e4a5a237a4bc687f1230adefa3e1d59305a8c8c4c27bb6156"
+    },
+    "big_driving_tinygrad.pkl.chunkmanifest": {
+      "bytes": 3,
+      "sha256": "7ee29791fc17e986b97128845622b077fb45e349fdb80523fac9dba879b4ad60"
+    }
+  }
+}
