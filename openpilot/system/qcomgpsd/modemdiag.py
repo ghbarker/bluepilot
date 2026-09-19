@@ -1,7 +1,7 @@
 import select
 from struct import pack, unpack_from, calcsize
 
-from openpilot.common.serial import Serial
+from openpilot.common.serial import Serial, SerialException
 
 
 def _gen_crc16_reflected_table(poly: int) -> list[int]:
@@ -33,9 +33,13 @@ class ModemDiag:
 
   def open_serial(self):
     serial = Serial("/dev/ttyUSB0", baudrate=115200, rtscts=True, dsrdtr=True, timeout=0, exclusive=True)
-    serial.flush()
-    serial.reset_input_buffer()
-    serial.reset_output_buffer()
+    try:
+      serial.flush()
+      serial.reset_input_buffer()
+      serial.reset_output_buffer()
+    except BaseException:
+      serial.close()
+      raise
     return serial
 
   ESCAPE_CHAR = b'\x7d'
@@ -63,6 +67,10 @@ class ModemDiag:
     while self.TRAILER_CHAR not in raw_payload[-1]:
       select.select([self.serial.fd], [], [])
       raw = self.serial.read(0x10000)
+      if not raw:
+        # A disconnected modem can report EOF rather than raising from read().
+        # Do not spin forever on the readable-but-empty descriptor.
+        raise SerialException("modem diagnostic port disconnected")
       raw_payload.append(raw)
     raw_payload = b''.join(raw_payload)
     raw_payload, self.pend = raw_payload.split(self.TRAILER_CHAR, 1)

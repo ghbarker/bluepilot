@@ -12,7 +12,7 @@ import sys
 
 import pyray as rl
 
-from openpilot.system.ui.lib.application import gui_app, MousePos
+from openpilot.system.ui.lib.application import gui_app, MousePos, MouseEvent
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.text import wrap_text
 from openpilot.system.ui.widgets import Widget
@@ -98,12 +98,16 @@ class BPSpinner(Widget):
     self._output_buffer: list[str] = []
     self._scroll_offset = 0
     self._max_scroll = 0
+    self._follow_log_tail = True
+    self._drag_y: float | None = None
+    self._dragged = False
     self._reboot_button_rect = rl.Rectangle(0, 0, 0, 0)
     self._reboot_hover = False
 
   def set_text(self, text: str) -> None:
     if text == "BUILD_FAILED":
       self._error_mode = True
+      self._follow_log_tail = True
       return
     if text == "BUILD_RETRY":
       self._exit_error_mode()
@@ -137,6 +141,9 @@ class BPSpinner(Widget):
     self._progress = None
     self._status_text = ""
     self._scroll_offset = 0
+    self._follow_log_tail = True
+    self._drag_y = None
+    self._dragged = False
 
   def _handle_input(self) -> None:
     if not self._error_mode:
@@ -148,12 +155,29 @@ class BPSpinner(Widget):
 
     wheel_move = rl.get_mouse_wheel_move()
     if wheel_move != 0:
+      self._follow_log_tail = False
       self._scroll_offset = clamp(self._scroll_offset - int(wheel_move * 3 * ERROR_LINE_HEIGHT), 0, self._max_scroll)
+
+  def _handle_mouse_event(self, event: MouseEvent) -> None:
+    if not self._error_mode:
+      return
+    if event.left_pressed:
+      self._dragged = False
+      self._drag_y = event.pos.y if event.pos.y < self._reboot_button_rect.y else None
+    elif event.left_down and self._drag_y is not None:
+      delta = self._drag_y - event.pos.y
+      if abs(delta) > 2:
+        self._dragged = True
+        self._follow_log_tail = False
+        self._scroll_offset = clamp(self._scroll_offset + int(delta), 0, self._max_scroll)
+        self._drag_y = event.pos.y
+    if event.left_released:
+      self._drag_y = None
 
   def _handle_mouse_release(self, mouse_pos: MousePos) -> None:
     # framework-dispatched tap handler (works with touch); reboot when the button is tapped
     super()._handle_mouse_release(mouse_pos)
-    if not self._error_mode:
+    if not self._error_mode or self._dragged:
       return
     r = self._reboot_button_rect
     if r.x <= mouse_pos.x <= r.x + r.width and r.y <= mouse_pos.y <= r.y + r.height:
@@ -168,45 +192,60 @@ class BPSpinner(Widget):
     rl.draw_rectangle_rec(rect, ERROR_BG)
 
     title = "Build Failed"
-    title_size = measure_text_cached(gui_app.font(), title, FONT_SIZE)
-    title_y = 50
+    compact = rect.height < 400
+    title_font = 24 if compact else FONT_SIZE
+    error_font = 16 if compact else ERROR_FONT_SIZE
+    line_height = 20 if compact else ERROR_LINE_HEIGHT
+    margin = 24 if compact else MARGIN_H
+    button_width, button_height = (140, 40) if compact else (BUTTON_WIDTH, BUTTON_HEIGHT)
+    title_size = measure_text_cached(gui_app.font(), title, title_font)
+    title_y = 8 if compact else 50
     rl.draw_text_ex(gui_app.font(), title, rl.Vector2(rect.width / 2 - title_size.x / 2, title_y),
-                    FONT_SIZE, 0.0, ORANGE_COLOR)
+                    title_font, 0.0, ORANGE_COLOR)
 
-    text_area_y = title_y + FONT_SIZE + 30
-    text_area_height = rect.height - text_area_y - BUTTON_HEIGHT - 60
+    text_area_y = title_y + title_font + (8 if compact else 30)
+    button_y = rect.height - button_height - (8 if compact else 40)
+    text_area_height = max(line_height, button_y - text_area_y - (8 if compact else 20))
 
     wrapped_error_lines: list[str] = []
     for line in self._output_buffer:
-      wrapped_error_lines.extend(wrap_text(line, ERROR_FONT_SIZE, int(rect.width - MARGIN_H)))
+      # The upstream wrapper cannot split long path tokens. Split those by
+      # measured width so build errors stay readable on the small display.
+      for wrapped in wrap_text(line, error_font, int(rect.width - margin)):
+        while wrapped:
+          end = len(wrapped)
+          while end > 1 and measure_text_cached(gui_app.font(), wrapped[:end], error_font).x > rect.width - margin:
+            end -= 1
+          wrapped_error_lines.append(wrapped[:end])
+          wrapped = wrapped[end:]
 
-    total_text_height = len(wrapped_error_lines) * ERROR_LINE_HEIGHT
+    total_text_height = len(wrapped_error_lines) * line_height
     self._max_scroll = max(0, total_text_height - int(text_area_height))
     # default to showing the tail (the actual error)
-    if self._scroll_offset == 0 and self._max_scroll > 0:
+    if self._follow_log_tail:
       self._scroll_offset = self._max_scroll
 
-    visible_lines = int(text_area_height / ERROR_LINE_HEIGHT) + 1
-    start_line = min(self._scroll_offset // ERROR_LINE_HEIGHT, len(wrapped_error_lines))
+    visible_lines = int(text_area_height / line_height) + 1
+    start_line = min(self._scroll_offset // line_height, len(wrapped_error_lines))
     end_line = min(start_line + visible_lines, len(wrapped_error_lines))
 
+    rl.begin_scissor_mode(int(margin / 2), int(text_area_y), int(rect.width - margin), int(text_area_height))
     for i in range(start_line, end_line):
-      line_y = text_area_y + (i - start_line) * ERROR_LINE_HEIGHT - (self._scroll_offset % ERROR_LINE_HEIGHT)
-      if text_area_y - ERROR_LINE_HEIGHT <= line_y <= text_area_y + text_area_height:
-        rl.draw_text_ex(gui_app.font(), wrapped_error_lines[i], rl.Vector2(MARGIN_H / 2, line_y),
-                        ERROR_FONT_SIZE, 0.0, rl.WHITE)
+      line_y = text_area_y + (i - start_line) * line_height - (self._scroll_offset % line_height)
+      rl.draw_text_ex(gui_app.font(), wrapped_error_lines[i], rl.Vector2(margin / 2, line_y),
+                      error_font, 0.0, rl.WHITE)
+    rl.end_scissor_mode()
 
-    button_y = rect.height - BUTTON_HEIGHT - 40
-    self._reboot_button_rect = rl.Rectangle((rect.width - BUTTON_WIDTH) / 2, button_y, BUTTON_WIDTH, BUTTON_HEIGHT)
+    self._reboot_button_rect = rl.Rectangle((rect.width - button_width) / 2, button_y, button_width, button_height)
     reboot_color = FORD_BLUE_HOVER_COLOR if self._reboot_hover else FORD_BLUE_COLOR
     rl.draw_rectangle_rounded(self._reboot_button_rect, 0.4, 20, reboot_color)
 
     reboot_text = "Reboot"
-    rt_size = measure_text_cached(gui_app.font(), reboot_text, ERROR_FONT_SIZE + 8)
+    rt_size = measure_text_cached(gui_app.font(), reboot_text, error_font + 8)
     rl.draw_text_ex(gui_app.font(), reboot_text,
-                    rl.Vector2(self._reboot_button_rect.x + (BUTTON_WIDTH - rt_size.x) / 2,
-                               self._reboot_button_rect.y + (BUTTON_HEIGHT - rt_size.y) / 2),
-                    ERROR_FONT_SIZE + 8, 0.0, rl.WHITE)
+                    rl.Vector2(self._reboot_button_rect.x + (button_width - rt_size.x) / 2,
+                               self._reboot_button_rect.y + (button_height - rt_size.y) / 2),
+                    error_font + 8, 0.0, rl.WHITE)
 
   def _render(self, rect: rl.Rectangle) -> None:
     self._handle_input()

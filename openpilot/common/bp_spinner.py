@@ -11,7 +11,7 @@ class BPSpinner:
     try:
       self.spinner_proc = subprocess.Popen(["./bp_spinner.py"],
                                            stdin=subprocess.PIPE,
-                                           cwd=os.path.join(BASEDIR, "system", "ui"),
+                                           cwd=os.path.join(BASEDIR, "openpilot", "system", "ui"),
                                            close_fds=True)
     except OSError:
       self.spinner_proc = None
@@ -21,8 +21,8 @@ class BPSpinner:
 
   def update(self, spinner_text: str):
     if self.spinner_proc is not None and self.spinner_proc.stdin is not None:
-      self.spinner_proc.stdin.write(spinner_text.encode('utf8') + b"\n")
       try:
+        self.spinner_proc.stdin.write(spinner_text.encode('utf8') + b"\n")
         self.spinner_proc.stdin.flush()
       except BrokenPipeError:
         pass

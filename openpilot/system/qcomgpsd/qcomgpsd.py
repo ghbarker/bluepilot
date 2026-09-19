@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import fcntl
+import json
 import os
 import sys
 import signal
@@ -87,6 +88,7 @@ def try_setup_logs(diag, logs):
 
 AT_PORT = "/dev/modem_at0"
 AT_LOCK = "/dev/shm/modem.lock"  # shared with modem.py and LPA
+MODEM_STATE_PATH = "/dev/shm/modem"
 
 @retry(attempts=5, delay=1.0)
 def at_cmd(cmd: str) -> str:
@@ -109,6 +111,20 @@ def at_cmd(cmd: str) -> str:
 
 def gps_enabled() -> bool:
   return "QGPS: 1" in at_cmd("AT+QGPS?")
+
+
+def configure_gnss():
+  # Quectel EC25/EG25 and EM12 GNSS manuals: 1 enables GPS, GLONASS,
+  # Galileo and BeiDou. The donor's value 4 enabled only GPS + GLONASS.
+  # Query first to avoid rewriting the persisted setting on every boot.
+  expected = '+QGPSCFG: "gnssconfig",1'
+  if expected not in at_cmd('AT+QGPSCFG="gnssconfig"'):
+    at_cmd('AT+QGPSCFG="gnssconfig",1')
+    if expected not in at_cmd('AT+QGPSCFG="gnssconfig"'):
+      # Some modem firmware does not support this setting. Leave GNSS startup
+      # available and report that the optional constellation change did not stick.
+      cloudlog.warning("modem did not confirm multi-constellation GNSS configuration")
+
 
 @retry(attempts=5, delay=1.0)
 def setup_quectel(diag: ModemDiag):
@@ -135,6 +151,7 @@ def setup_quectel(diag: ModemDiag):
     at_cmd(f"AT+QGPSXTRATIME=0,\"{time_str}\",1,1,1000")
 
   at_cmd("AT+QGPSCFG=\"outport\",\"usbnmea\"")
+  configure_gnss()
   at_cmd("AT+QGPS=1")
 
   # enable OEMDRE mode
@@ -179,6 +196,57 @@ def wait_for_modem():
     time.sleep(0.5)
 
 
+def _read_modem_state() -> dict:
+  try:
+    with open(MODEM_STATE_PATH) as state_file:
+      state = json.load(state_file)
+    return state if isinstance(state, dict) else {}
+  except (OSError, ValueError):
+    return {}
+
+
+def _close_diag(diag):
+  if diag is not None:
+    try:
+      diag.serial.close()
+    except OSError:
+      cloudlog.exception("qcomgpsd: failed to close diagnostic port")
+
+
+def _reconnect_diag() -> ModemDiag:
+  while True:
+    diag = None
+    try:
+      wait_for_modem()
+      diag = ModemDiag()
+      setup_quectel(diag)
+      cloudlog.warning("quectel setup done")
+      return diag
+    except Exception:
+      # Setup can fail after taking the exclusive serial lock. Release that
+      # candidate before retrying so a transient fault cannot prevent recovery.
+      _close_diag(diag)
+      cloudlog.exception("qcomgpsd: failed to connect diag, retrying")
+      time.sleep(1.0)
+    except BaseException:
+      _close_diag(diag)
+      raise
+
+
+def recv_diag(diag):
+  while True:
+    try:
+      opcode, payload = diag.recv()
+      return diag, opcode, payload
+    except OSError as error:
+      # Current SerialException inherits OSError; select() can also raise it.
+      state = _read_modem_state()
+      cloudlog.event("bp_qcomgpsd_diag_fault", error=str(error),
+                     modem_version=state.get("modem_version"), modem_state=state.get("state"))
+      _close_diag(diag)
+      diag = _reconnect_diag()
+
+
 def main() -> NoReturn:
   unpack_gps_meas, size_gps_meas = dict_unpacker(gps_measurement_report, True)
   unpack_gps_meas_sv, size_gps_meas_sv = dict_unpacker(gps_measurement_report_sv, True)
@@ -194,33 +262,33 @@ def main() -> NoReturn:
 
   unpack_position, _ = dict_unpacker(position_report)
 
-  wait_for_modem()
-
+  diag = None
   def cleanup(sig, frame):
     cloudlog.warning("caught sig disabling quectel gps")
 
     gpio_set(GPIO.GNSS_PWR_EN, False)
     try:
-      teardown_quectel(diag)
+      if diag is not None:
+        teardown_quectel(diag)
       cloudlog.warning("quectel cleanup done")
-    except NameError:
-      cloudlog.warning('quectel not yet setup')
+    except Exception:
+      cloudlog.exception("quectel cleanup failed")
+    finally:
+      _close_diag(diag)
 
     sys.exit(0)
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
   # connect to modem
-  diag = ModemDiag()
-  setup_quectel(diag)
-  cloudlog.warning("quectel setup done")
+  diag = _reconnect_diag()
   gpio_init(GPIO.GNSS_PWR_EN, True)
   gpio_set(GPIO.GNSS_PWR_EN, True)
 
   pm = messaging.PubMaster(['qcomGnss', 'gpsLocation'])
 
   while 1:
-    opcode, payload = diag.recv()
+    diag, opcode, payload = recv_diag(diag)
     if opcode != DIAG_LOG_F:
       cloudlog.error(f"Unhandled opcode: {opcode}")
       continue
