@@ -36,7 +36,8 @@ class VisualsLayout(Widget):
       ),
       "TorqueBar": (
         lambda: tr("Steering Arc"),
-        tr("Display steering arc on the driving screen when lateral control is enabled."),
+        tr("Shows steering direction and estimated steering effort. Steering warnings indicate tracking limits " +
+           "and can appear before the arc is full."),
         None,
       ),
       "RainbowMode": (

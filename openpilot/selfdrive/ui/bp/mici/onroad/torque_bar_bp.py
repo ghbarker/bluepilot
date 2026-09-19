@@ -16,4 +16,8 @@ class TorqueBarBP(TorqueBarStateBP, TorqueBar):
     try:
       self._update_torque_filter_bp()
     except (KeyError, AttributeError):
-      pass
+      self._clear_torque_bp()
+
+  def _render(self, rect):
+    if self._demo or self._bp_torque_valid:
+      super()._render(rect)

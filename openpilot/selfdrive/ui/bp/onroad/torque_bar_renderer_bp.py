@@ -162,13 +162,13 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     try:
       self._update_torque_filter_bp()
     except (KeyError, AttributeError):
-      pass
+      self._clear_torque_bp()
 
     self._update_alpha()
 
   def _update_alpha(self):
     """Update visibility alpha based on engagement status."""
-    self._alpha_filter.update(ui_state.status not in (UIStatus.DISENGAGED, UIStatus.LONG_ONLY))
+    self._alpha_filter.update(self._bp_torque_valid and ui_state.status not in (UIStatus.DISENGAGED, UIStatus.LONG_ONLY))
     bp_ui_log.state("TorqueBar", "alpha", round(self._alpha_filter.x, 2))
     bp_ui_log.state("TorqueBar", "ui_status", ui_state.status.name)
 
@@ -179,7 +179,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         rect: The UI rect to position the arc within.
         gauge_height_offset: Pixels to subtract from rect height to push the arc above gauges.
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
 
     # Shrink effective rect to push arc above the gauge area
@@ -283,7 +283,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     Args:
         strip_rect: Rectangle allocated for the strip (full inner width, STRIP_HEIGHT tall).
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
 
     torque = self._torque_filter.x
@@ -376,7 +376,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     strip spans battery+powerflow to shift center left by one tick (e.g. top_angle - 1.5°).
     scale: 0.75 for small arched gauge, 1.0 for large.
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
     torque = self._torque_filter.x
     alpha = self._alpha_filter.x
