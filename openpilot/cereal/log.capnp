@@ -2645,8 +2645,8 @@ struct Event {
     customReserved10 @136 :Custom.CustomReserved10;
     customReserved11 @137 :Custom.CustomReserved11;
     customReserved12 @138 :Custom.CustomReserved12;
-    customReserved13 @139 :Custom.CustomReserved13;
-    customReserved14 @140 :Custom.CustomReserved14;
+    controllerStateBP @139 :Custom.ControllerStateBP;  # BluePilot: claims customReserved13 slot
+    carStateBP @140 :Custom.CarStateBP;  # BluePilot: claims customReserved14 slot
     customReserved15 @141 :Custom.CustomReserved15;
     customReserved16 @142 :Custom.CustomReserved16;
     customReserved17 @143 :Custom.CustomReserved17;

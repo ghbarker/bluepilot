@@ -2,6 +2,12 @@
 
 #include "opendbc/safety/declarations.h"
 
+// BluePilot: retain the current upstream path unless the Ford extension is selected.
+#include "opendbc/safety/modes/ford_bluepilot.h"
+#define FORD_PARAM_SP_BLUEPILOT 0x4000U
+static bool ford_bluepilot_enabled = false;
+// End BluePilot
+
 // Safety-relevant CAN messages for Ford vehicles.
 #define FORD_EngBrakeData          0x165U   // RX from PCM, for driver brake pedal and cruise state
 #define FORD_EngVehicleSpThrottle  0x204U   // RX from PCM, for driver throttle input
@@ -22,6 +28,9 @@
 #define FORD_CAM_BUS  2U
 
 static uint8_t ford_get_counter(const CANPacket_t *msg) {
+  // BluePilot: include pinion integrity checks only for the selected extension.
+  if (ford_bluepilot_enabled) { return ford_overlay_get_counter(msg); }
+  // End BluePilot
   uint8_t cnt = 0;
   if (msg->addr == FORD_BrakeSysFeatures) {
     // Signal: VehVActlBrk_No_Cnt
@@ -35,6 +44,9 @@ static uint8_t ford_get_counter(const CANPacket_t *msg) {
 }
 
 static uint32_t ford_get_checksum(const CANPacket_t *msg) {
+  // BluePilot: include pinion integrity checks only for the selected extension.
+  if (ford_bluepilot_enabled) { return ford_overlay_get_checksum(msg); }
+  // End BluePilot
   uint8_t chksum = 0;
   if (msg->addr == FORD_BrakeSysFeatures) {
     // Signal: VehVActlBrk_No_Cs
@@ -48,6 +60,9 @@ static uint32_t ford_get_checksum(const CANPacket_t *msg) {
 }
 
 static uint32_t ford_compute_checksum(const CANPacket_t *msg) {
+  // BluePilot: include pinion integrity checks only for the selected extension.
+  if (ford_bluepilot_enabled) { return ford_overlay_compute_checksum(msg); }
+  // End BluePilot
   uint8_t chksum = 0;
   if (msg->addr == FORD_BrakeSysFeatures) {
     chksum += msg->data[0] + msg->data[1];  // Veh_V_ActlBrk
@@ -67,6 +82,9 @@ static uint32_t ford_compute_checksum(const CANPacket_t *msg) {
 }
 
 static bool ford_get_quality_flag_valid(const CANPacket_t *msg) {
+  // BluePilot: include pinion integrity checks only for the selected extension.
+  if (ford_bluepilot_enabled) { return ford_overlay_get_quality_flag_valid(msg); }
+  // End BluePilot
   bool valid = false;
   if (msg->addr == FORD_BrakeSysFeatures) {
     valid = (msg->data[2] >> 6) == 0x3U;           // VehVActlBrk_D_Qf
@@ -96,6 +114,13 @@ static const CurvatureSteeringLimits FORD_STEERING_LIMITS = {
 };
 
 static void ford_rx_hook(const CANPacket_t *msg) {
+  // BluePilot: publish the same corroborated measurement to both safety layers.
+  if (ford_bluepilot_enabled) {
+    ford_overlay_rx_hook(msg);
+    curvature_state.meas = angle_meas;
+    return;
+  }
+  // End BluePilot
   if (msg->bus == FORD_MAIN_BUS) {
     // Update in motion state from standstill signal
     if (msg->addr == FORD_DesiredTorqBrk) {
@@ -154,6 +179,50 @@ static void ford_rx_hook(const CANPacket_t *msg) {
 }
 
 static bool ford_tx_hook(const CANPacket_t *msg) {
+  // BluePilot: combine the donor actuator envelope with current upstream checks.
+  // Both must accept. The donor cannot clear the current check's rejection.
+  if (ford_bluepilot_enabled) {
+    const int path_angle_last = ford_overlay_desired_path_angle_last;
+    const int path_offset_last = ford_overlay_desired_path_offset_last;
+    const int curvature_rate_last = ford_overlay_desired_curvature_rate_last;
+    bool tx = ford_overlay_tx_hook(msg);
+    if ((msg->addr == FORD_LateralMotionControl) || (msg->addr == FORD_LateralMotionControl2)) {
+      const bool canfd = msg->addr == FORD_LateralMotionControl2;
+      const bool enabled = canfd ? (((msg->data[0] >> 4) & 0x7U) != 0U) : (((msg->data[4] >> 2) & 0x7U) != 0U);
+      const unsigned int raw = canfd ? ((msg->data[2] << 3) | (msg->data[3] >> 5)) : ((msg->data[0] << 3) | (msg->data[1] >> 5));
+      const int desired = raw - FORD_INACTIVE_CURVATURE;
+      const bool angle_mode = (desired == 0) && ford_overlay_bp_angle_mode_engaged;
+      // In angle mode the wire curvature is zero. Its measurement-error check is
+      // replaced by the donor's corroborated shadow check, not silently omitted.
+      // Path-angle has its own actuator ROC; shadow is a proximity cross-check,
+      // not another actuator, so do not apply a second ROC to that telemetry.
+      const CurvatureSteeringLimits limits = {
+        .max_curvature = 1000,
+        .curvature_to_can = 50000,
+        .frequency = 20,
+        .max_curvature_error = angle_mode ? 0 : (ford_overlay_bp_pinion_curvature ? 150 : 100),
+        .curvature_error_min_speed = 10.0,
+      };
+      bool violation = steer_curvature_cmd_checks(desired, 0, enabled, limits);
+      if (angle_mode && enabled) {
+        // The extra actuator must not evade the current lateral-acceleration cap.
+        const float speed = SAFETY_MAX((vehicle_speed.min / VEHICLE_SPEED_FACTOR) - 1.0, 1.0);
+        const float max_accel = ISO_LATERAL_ACCEL + (EARTH_G * AVERAGE_ROAD_ROLL);
+        const int cap = (max_accel / (speed * speed) * limits.curvature_to_can) + 1.;
+        const int shadow = FORD_OVERLAY_BP_SHADOW_CURVATURE_TO_CAN(ford_overlay_bp_shadow_curvature_raw);
+        violation |= safety_max_limit_check(shadow, cap, -cap);
+      }
+      tx &= !violation;
+    }
+    if (!tx) {
+      // Rejected messages never advance the actuator rate-limit history.
+      ford_overlay_desired_path_angle_last = path_angle_last;
+      ford_overlay_desired_path_offset_last = path_offset_last;
+      ford_overlay_desired_curvature_rate_last = curvature_rate_last;
+    }
+    return tx;
+  }
+  // End BluePilot
   const LongitudinalLimits FORD_LONG_LIMITS = {
     // acceleration cmd limits (used for brakes)
     // Signal: AccBrkTot_A_Rq
@@ -272,6 +341,10 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
 }
 
 static safety_config ford_init(uint16_t param) {
+  // BluePilot: the SP flag is independent of upstream longitudinal/CAN-FD bits.
+  ford_bluepilot_enabled = GET_FLAG(current_safety_param_sp, FORD_PARAM_SP_BLUEPILOT);
+  if (ford_bluepilot_enabled) { return ford_overlay_init(param); }
+  // End BluePilot
   // warning: quality flags are not yet checked in openpilot's CAN parser,
   // this may be the cause of blocked messages
   static RxCheck ford_rx_checks[] = {

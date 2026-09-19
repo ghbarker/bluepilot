@@ -1,0 +1,18 @@
+[
+  {
+    "path": "openpilot/selfdrive/assets/sounds/disengage_tizi.wav",
+    "oid": "1f061777d66d8d856a5fcb17378416f959088885ed770181355195ad15de881b",
+    "size": 68628
+  },
+  {
+    "path": "openpilot/selfdrive/assets/sounds/engage_tizi.wav",
+    "oid": "6b54a85cc09b8ee79fce23d48209205d2e70510eed4c5a86fa400fe3f7caebfd",
+    "size": 63120
+  },
+  {
+    "path": "openpilot/selfdrive/modeld/models/dmonitoring_model.onnx",
+    "oid": "dd299afabe7a3e0d04cbe2bd97fdb0c93bba8ad6d3cc3663a0e0ededaf243ac2",
+    "size": 7497335,
+    "source": "a5f44653d7f43ad57fef2f546f3916ec4cbf3c56"
+  }
+]

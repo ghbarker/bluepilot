@@ -24,6 +24,10 @@ from openpilot.selfdrive.car.helpers import convert_carControlSP, convert_to_cap
 
 from openpilot.sunnypilot.mads.helpers import set_alternative_experience, set_car_specific_params
 from openpilot.sunnypilot.selfdrive.car import interfaces as sunnypilot_interfaces
+# BluePilot: conditional BP message publishing (controllerStateBP, carStateBP)
+from openpilot.common.bluepilot import is_bluepilot
+if is_bluepilot():
+  from bluepilot.selfdrive.car.bp_card_publisher import publish_controller_state_bp, publish_car_state_bp
 
 REPLAY = "REPLAY" in os.environ
 
@@ -72,7 +76,8 @@ class Car:
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents'] + ['carControlSP', 'longitudinalPlanSP'])
-    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks'] + ['carParamsSP', 'carStateSP'])
+    # BluePilot: added controllerStateBP, carStateBP to PubMaster
+    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks'] + ['carParamsSP', 'carStateSP', 'controllerStateBP', 'carStateBP'])
 
     self.can_rcv_cum_timeout_counter = 0
 
@@ -267,6 +272,10 @@ class Car:
     cs_sp_send.carStateSP = CS_SP
     self.pm.send('carStateSP', cs_sp_send)
 
+    # BluePilot: publish hybrid drive gauge data (carStateBP)
+    if is_bluepilot():
+      publish_car_state_bp(self.CI, self.pm, CS.canValid)
+
   def controls_update(self, CS: car.CarState, CC: car.CarControl, CC_SP: custom.CarControlSP):
     """control update loop, driven by carControl"""
 
@@ -284,6 +293,11 @@ class Car:
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
       self.CC_prev = CC
+
+    # BluePilot: publish lateral uncertainty for angleState vehicles (controllerStateBP)
+    if is_bluepilot():
+      publish_controller_state_bp(self.CI, self.pm)
+
 
   def step(self):
     CS, CS_SP, RD = self.state_update()

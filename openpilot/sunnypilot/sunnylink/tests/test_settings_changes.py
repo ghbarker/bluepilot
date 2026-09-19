@@ -153,6 +153,85 @@ class TestTestManeuversSection(OpenpilotTestCase):
       "test_maneuvers must gate ShowAdvancedControls via enablement"
 
 
+class TestBluePilotVehicleVisuals(OpenpilotTestCase):
+  def test_rainbow_lane_lines_ordered_with_visual_toggles(self, schema):
+    items = schema["vehicle_settings"]["ford"]["items"]
+    keys = [item["key"] for item in items]
+    assert "BPRainbowLines" in keys
+    assert keys.index("BPHideCameraView") < keys.index("BPRainbowLines") < keys.index("ShowBlindspotOverlay")
+
+    item = _find_item(schema, "BPRainbowLines")
+    assert item is not None
+    assert item["title"] == "[Visuals] Rainbow Lane Lines"
+    assert item["description"] == "Inner lane lines become rainbow colored when longitudinal control is active."
+
+
+class TestBluePilotLateralSchemeSplit(OpenpilotTestCase):
+  """The Ford lateral-tuning params are split by control scheme (_curv/_ang suffixes) and every
+  scheme-specific item must be visibility-gated on FordPrefLateralControl so the remote UI never
+  offers a control that the other scheme silently ignores (e.g. In-Lane Offset in angle mode)."""
+
+  OLD_DEAD_KEYS = ("lane_change_factor_high", "custom_path_offset",
+                   "FordAngleLowSpeedFactor", "FordAngleHighSpeedFactor")
+
+  @staticmethod
+  def _mode_gate(item) -> int | None:
+    for rule in item.get("visibility") or []:
+      if rule.get("type") == "param" and rule.get("key") == "FordPrefLateralControl":
+        return rule.get("equals")
+    return None
+
+  def test_no_pre_split_keys_remain(self, schema):
+    for key in self.OLD_DEAD_KEYS:
+      assert _find_item(schema, key) is None, f"pre-split param '{key}' still referenced in schema"
+
+  def test_scheme_suffixed_items_gate_on_matching_mode(self, schema):
+    items = schema["vehicle_settings"]["ford"]["items"]
+    suffixed = [item for item in items if item["key"].endswith(("_curv", "_ang"))]
+    assert suffixed, "expected _curv/_ang lateral items in the ford section"
+    for item in suffixed:
+      expected_mode = 0 if item["key"].endswith("_curv") else 1
+      assert self._mode_gate(item) == expected_mode, \
+        f"{item['key']} must be visibility-gated on FordPrefLateralControl == {expected_mode}"
+
+  def test_curvature_group_is_complete(self, schema):
+    keys = {item["key"] for item in schema["vehicle_settings"]["ford"]["items"]}
+    expected = {"enable_human_turn_detection_curv", "lane_change_factor_high_curv",
+                "enable_lane_positioning_curv", "custom_path_offset_curv",
+                "enable_lane_full_mode_curv", "custom_profile_curv",
+                "pc_blend_ratio_high_C_UI_curv", "pc_blend_ratio_low_C_UI_curv",
+                "LC_PID_gain_UI_curv"}
+    assert expected <= keys, f"missing curvature items: {expected - keys}"
+
+  def test_in_lane_offset_requires_lane_positioning(self, schema):
+    item = _find_item(schema, "custom_path_offset_curv")
+    assert item is not None
+    refs = json.dumps(item.get("enablement") or [])
+    assert "enable_lane_positioning_curv" in refs
+
+  def test_disable_toggle_and_mode_selector_lead_the_section(self, schema):
+    keys = [item["key"] for item in schema["vehicle_settings"]["ford"]["items"]]
+    lateral_keys = [k for k in keys if k in ("disable_BP_lat_UI", "FordPrefLateralControl")]
+    assert lateral_keys == ["disable_BP_lat_UI", "FordPrefLateralControl"]
+    assert keys.index("disable_BP_lat_UI") < keys.index("FordLowSpeedFactor_ang")
+    assert keys.index("disable_BP_lat_UI") < keys.index("enable_human_turn_detection_curv")
+
+  def test_high_speed_low_curve_adjustment_contract(self, schema):
+    items = schema["vehicle_settings"]["ford"]["items"]
+    keys = [item["key"] for item in items]
+    item = _find_item(schema, "FordHighSpeedDampening_ang")
+    assert item is not None
+    assert keys.index("FordHighSpeedDampening_ang") == keys.index("FordHighSpeedFactor_ang") + 1
+    assert item["title"] == "[Lateral Tuning] High Speed Low Curve Adjustment Factor (Angle)"
+    expected_description = " ".join((
+      "Tune adjustment factor for low curve straightaways (highways) at high speeds.",
+      "If oversteering, reduce. If understeering, increase",
+    ))
+    assert item["description"] == expected_description
+    assert (item["min"], item["max"], item["step"]) == (0.25, 1.25, 0.01)
+    assert self._mode_gate(item) == 1
+
+
 class TestValidator(OpenpilotTestCase):
   def test_validator_accepts_real_json(self):
     """settings_ui.json validates against settings_ui.schema.json."""

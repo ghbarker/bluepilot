@@ -242,6 +242,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     {"DynamicExperimentalControl", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"BlindSpot", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"ShowBlindspotOverlay", {PERSISTENT | BACKUP, BOOL, "1"}},
 
     // sunnypilot model params
     {"CameraOffset", {PERSISTENT | BACKUP, FLOAT, "0.0"}},
@@ -295,4 +296,101 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"TorqueParamsOverrideEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"TorqueParamsOverrideFriction", {PERSISTENT | BACKUP, FLOAT, "0.1"}},
     {"TorqueParamsOverrideLatAccelFactor", {PERSISTENT | BACKUP, FLOAT, "2.5"}},
+
+    // Blue Pilot
+    {"send_hands_free_cluster_msg", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"enable_human_turn_detection", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"lane_change_factor_high", {PERSISTENT | BACKUP, FLOAT, "0.85"}},
+    {"pc_blend_ratio_high_C_UI", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"pc_blend_ratio_low_C_UI", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"enable_lane_positioning", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_path_offset", {PERSISTENT | BACKUP, FLOAT,"0.0"}},
+    {"enable_lane_full_mode", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_profile", {PERSISTENT | BACKUP, INT, "0"}},
+    {"LC_PID_gain_UI", {PERSISTENT | BACKUP, FLOAT, "3.0"}},
+    {"FordPrefLateralControl", {PERSISTENT | BACKUP, INT, "0"}},
+    {"FordAngleLowSpeedFactor", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"FordAngleHighSpeedFactor", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+
+    // Blue Pilot: lateral-tuning params split by control scheme (curvature vs angle) -- see
+    // sunnypilot/system/params_migration.py for the one-time migration from the params above.
+    {"enable_human_turn_detection_curv", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"lane_change_factor_high_curv", {PERSISTENT | BACKUP, FLOAT, "0.85"}},
+    {"lane_change_factor_high_ang", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"pc_blend_ratio_high_C_UI_curv", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"pc_blend_ratio_low_C_UI_curv", {PERSISTENT | BACKUP, FLOAT, "0.4"}},
+    {"enable_lane_positioning_curv", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_path_offset_curv", {PERSISTENT | BACKUP, FLOAT, "0.0"}},
+    {"enable_lane_full_mode_curv", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_profile_curv", {PERSISTENT | BACKUP, INT, "0"}},
+    {"LC_PID_gain_UI_curv", {PERSISTENT | BACKUP, FLOAT, "3.0"}},
+    {"FordLowSpeedFactor_ang", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"FordHighSpeedFactor_ang", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"FordHighSpeedDampening_ang", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"BPLateralSchemeParamsMigratedV1", {PERSISTENT | BACKUP, STRING, "0"}},
+
+    // BluePilot: angle-mode lane centering trim (advanced lane positioning) -- see
+    // opendbc/sunnypilot/car/ford/lane_center_trim.py.
+    {"enable_lane_positioning_ang", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"custom_path_offset_ang", {PERSISTENT | BACKUP, FLOAT, "0.0"}},
+    {"lane_centering_strength_ang", {PERSISTENT | BACKUP, FLOAT, "0.25"}},
+
+    {"disable_BP_lat_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"disable_BP_long_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"disable_downhill_comp_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"disable_ford_radar_UI", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"vbatt_pause_charging", {PERSISTENT | BACKUP, FLOAT, "11.8"}},
+    {"show_lead_speed", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"FordPrefSteerAngleCurvature", {PERSISTENT | BACKUP, BOOL, "0"}},  // pinion-sourced curvature measurement (bad-yaw-sensor workaround); read at car init
+    {"FordPrefShowRadarLeadOverlay", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"FordPrefRadarOverlaySize", {PERSISTENT | BACKUP, INT, "1"}},
+    {"FordPrefHybridBatteryStatus", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridPowerFlow", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridDriveGaugeSize", {PERSISTENT | BACKUP, INT, "1"}},
+    {"FordPrefGaugeStyle", {PERSISTENT | BACKUP, INT, "0"}},  // hybrid/EV gauge style: 0=flat, 1=arched
+    {"FordPrefHevDataAvailable", {CLEAR_ON_MANAGER_START, BOOL, "0"}},
+    {"FordPrefHevBattDataAvailable", {CLEAR_ON_MANAGER_START, BOOL, "0"}},
+    {"mici_complication", {PERSISTENT | BACKUP, INT, "0"}},
+    {"ShowBrakeStatus", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"FordPrefHybridPowerFlowAlternate", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"mici_hide_onroad_fade", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"mici_hide_onroad_border", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPHideOnroadBorder", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPHideCameraView", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPRadRacerTheme", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPThemePack", {PERSISTENT | BACKUP, STRING, ""}},
+    {"BPThemeAutoSeasonal", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPRainbowLines", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPShowConfidenceBall", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"BPAnimateSteeringWheel", {PERSISTENT | BACKUP, BOOL, "1"}},
+    // BluePilot: No static defaults; the first active UI persists its matching device styles (C4=0, C3X=1).
+    {"BPSteeringWheelIconStyle", {PERSISTENT | BACKUP, INT}},
+    {"BPDMStylingChoice", {PERSISTENT | BACKUP, INT}},
+    {"BPUseCustomSounds", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPCustSoundsSelection", {PERSISTENT | BACKUP, INT, "0"}},  // 0=Comma 4, 1=Comma 3x, 2=Tesla
+    {"BpShowLateralControl", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPDisableLaneLineStatusColor", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPUIDebugLog", {PERSISTENT, BOOL, "0"}},
+    {"Blindspot", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BlinkerPauseLaneChange", {PERSISTENT | BACKUP, BOOL, "0"}},
+
+    // BluePilot: Portal (Web Routes Server)
+    {"EnableWebRoutesServer", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPPortalPort", {PERSISTENT | BACKUP, INT, "8088"}},
+
+    // BluePilot: connect backend — 0=Comma Connect, 1=Konik Stable, 2=Offline Mode.
+    // Per-backend dongle ID caches let comma <-> Konik switch without losing either identity;
+    // see bluepilot/backend_switch.py. BPUseKonik is legacy (bool toggle); migrated once to
+    // BPConnectBackend=1 then cleared.
+    {"BPConnectBackend", {PERSISTENT | BACKUP, INT, "0"}},
+    {"BPUseKonik", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"BPActiveBackend", {PERSISTENT, STRING}},
+    {"BPDongleIdComma", {PERSISTENT, STRING}},
+    {"BPDongleIdKonik", {PERSISTENT, STRING}},
+
+    // BluePilot: UI params
+    {"BPLastSeenVersion", {PERSISTENT, STRING}},
+
+    // WiFi Management
+    {"WifiFavoriteSSID", {PERSISTENT | BACKUP, STRING}},
 };

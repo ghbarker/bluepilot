@@ -6,7 +6,9 @@ from openpilot.common.hardware import HARDWARE
 
 # raise fan setpoint on tici/tizi to reduce noise
 # after raising LMH threshold in AGNOS 18.1 to prevent CPU throttling
-OFFSET = 0 if HARDWARE.get_device_type() == "mici" else 5
+# BluePilot: comma used +5C (fan setpoint 80C) for quieter fans; BP uses +2C (77C) to split the
+# difference -- ~3C cooler than comma's noise-first tuning, still quieter than the pre-sync 75C.
+OFFSET = 0 if HARDWARE.get_device_type() == "mici" else 2
 
 
 class FanController:

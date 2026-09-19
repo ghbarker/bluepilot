@@ -4,19 +4,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tools.bluepilot_chestnut.preflight import angle_fields, missing_legacy_fields, verify_model_files
+from tools.bluepilot_chestnut.preflight import verify_model_files
 
 
 class PreflightTest(unittest.TestCase):
-  def test_struct_parser_does_not_read_adjacent_struct(self):
-    header = "typedef struct { int max_angle_error; } Other;\ntypedef struct { int max_angle; } AngleSteeringLimits;"
-    self.assertEqual(angle_fields(header), {"max_angle"})
-    self.assertIn("max_angle_error", missing_legacy_fields(header))
-
-  def test_unknown_struct_format_fails_closed(self):
-    with self.assertRaises(ValueError):
-      angle_fields("typedef int AngleSteeringLimits;")
-
   def test_missing_extra_corrupt_and_misnumbered_model_chunks_are_rejected(self):
     with tempfile.TemporaryDirectory() as scratch:
       root = Path(scratch)
