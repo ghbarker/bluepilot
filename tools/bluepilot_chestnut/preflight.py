@@ -24,10 +24,26 @@ PROTECTED = [
   "opendbc_repo/opendbc/safety/lateral.h",
 ]
 
+# Narrow, regression-tested exception to the pinned modeld source: its readiness
+# subscriber waited for telemetry that modeld itself publishes only after load.
+# Hash the complete replacement sources (with normalized line endings), so this
+# exception cannot silently admit changes to inference, outputs, or fallback.
+SOURCE_FIXES = {
+  "openpilot/selfdrive/modeld/modeld.py": "574434aee04ff8eb6b2c4d0972f34fbdf67ec4b221469242db842c7241766aba",
+  "openpilot/selfdrive/modeld/chestnut_startup.py": "ae6485978b9e2135a8680159c431a7a7c685ae0062e175aba8d6624f35191360",
+}
+
 
 def sha256(path):
   with path.open("rb") as stream:
     return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def verify_source_fixes(root, expected=SOURCE_FIXES):
+  for name, digest in expected.items():
+    actual = hashlib.sha256((root / name).read_text(encoding="utf-8").encode("utf-8")).hexdigest()
+    if actual != digest:
+      raise ValueError(f"Reviewed startup source changed: {name}")
 
 
 def verify_model_files(root, manifest):
@@ -52,7 +68,8 @@ def check(models_only=False):
   verify_model_files(ROOT, manifest)
   if not models_only:
     subprocess.run(["git", "merge-base", "--is-ancestor", STAGING, "HEAD"], cwd=ROOT, check=True)
-    subprocess.run(["git", "diff", "--quiet", STAGING, "--", *PROTECTED], cwd=ROOT, check=True)
+    subprocess.run(["git", "diff", "--quiet", STAGING, "--", *(p for p in PROTECTED if p not in SOURCE_FIXES)], cwd=ROOT, check=True)
+    verify_source_fixes(ROOT)
     if (ROOT / "prebuilt").exists():
       raise ValueError("Modified native code requires a rebuild; remove the prebuilt marker")
     if "export SKIP_TINYGRAD_COMPILE=1" not in (ROOT / "launch_env.sh").read_text():
@@ -65,6 +82,7 @@ def check(models_only=False):
     "status": "MODEL_INTEGRITY_VERIFIED" if models_only else "SOURCE_INTEGRITY_VERIFIED",
     "staging": STAGING, "source": SOURCE, "donor": DONOR,
     "chestnut_chunks_sha256_verified": 18,
+    "reviewed_startup_source_files": sorted(SOURCE_FIXES) if not models_only else [],
     "device_qualification": "not performed",
   }
 

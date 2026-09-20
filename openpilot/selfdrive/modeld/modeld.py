@@ -33,7 +33,8 @@ from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_drivi
 from openpilot.common.file_chunker import open_file_chunked
 from openpilot.common.hardware.usb import CHESTNUT_USB_IDS
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
-from openpilot.selfdrive.modeld.helpers import chestnut_present, chestnut_compiled, chestnut_ready, modeld_pkl_path, load_oob
+from openpilot.selfdrive.modeld.helpers import chestnut_present, chestnut_compiled, modeld_pkl_path, load_oob
+from openpilot.selfdrive.modeld.chestnut_startup import wait_for_chestnut_ready
 
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
@@ -243,16 +244,7 @@ def main(demo=False):
   cloudlog.warning("modeld init")
 
   chestnut_available = chestnut_present() and chestnut_compiled()
-  CHESTNUT = False
-  if chestnut_available:
-    poller = messaging.Poller()
-    sock = messaging.sub_sock("chestnutState", poller=poller, conflate=True)
-    deadline = time.monotonic() + 4. / SERVICE_LIST['deviceState'].frequency
-    while not CHESTNUT and (remaining := deadline - time.monotonic()) > 0.:
-      if not poller.poll(round(remaining * 1000)):
-        break
-      msg = messaging.recv_one_or_none(sock)
-      CHESTNUT = msg is not None and msg.valid and chestnut_ready(msg.chestnutState)
+  CHESTNUT = chestnut_available and wait_for_chestnut_ready(4. / SERVICE_LIST['deviceState'].frequency)
   if CHESTNUT:
     os.environ['HCQDEV_WAIT_TIMEOUT_MS'] = '3000'
   params = Params()
