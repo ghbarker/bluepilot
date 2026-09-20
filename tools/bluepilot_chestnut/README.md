@@ -36,6 +36,51 @@ the pinned donor. That pre-existing limitation is retained; Ford settings are
 available in the device UI and current sunnylink schema. Portal's parameter API
 is adapted and tested, but the missing legacy web menus are not claimed as working.
 
+The Ford Edge legacy fingerprint `FORD EDGE 2ND GEN` maps to `FORD_EDGE_MK2`.
+The generated vehicle menu restores the donor's 2019-24 label. This is a menu and
+saved-identity correction; the existing VIN matching rules and actuator parameters
+are unchanged, and it does not establish qualification for additional model years.
+
+## Restored supporting features
+
+Device startup uses the BP build progress and error screen, adapted to both display
+sizes with touch scrolling. Before compiling, the build entry points synchronize
+the Python environment when `uv.lock` changes. The successful lock digest is stored
+inside the project venv (including an explicit `UV_PROJECT_ENVIRONMENT`). Sync uses
+`uv sync --frozen --inexact`, retains non-conflicting extras, and records success
+only after completion. A failed update stops startup with an error and is retried
+on the next launch; it never proceeds to manager with a knowingly failed sync.
+
+GPS setup requests Quectel multi-constellation configuration and reads it back.
+The donor used `gnssconfig=4` despite its all-constellations comment; the EC25/EG25
+and EM12 documentation specifies `1` for GPS, GLONASS, Galileo and BeiDou. An
+unsupported optional setting is reported without preventing GNSS startup. Modem
+diagnostic disconnects, including EOF from the current serial library, close the
+old port and retry setup; failed setup attempts release their exclusive handle.
+Actual modem firmware acceptance and reacquisition still require device testing.
+See the [Quectel GNSS command manual](https://forums.quectel.com/uploads/short-url/abgizBnqe7XbS8LCbfj0erAtZSu.pdf)
+and [uv synchronization reference](https://docs.astral.sh/uv/concepts/projects/sync/).
+
+The three offline Ford tools live under `openpilot/tools` and run as modules:
+
+```sh
+python -m openpilot.tools.ford_lmc_safety_replay '<dongleid>|<route>'
+python -m openpilot.tools.ford_yaw_health_check '<dongleid>|<route>'
+FORD_REPLAY_DONGLE_ID='<dongleid>' python -m openpilot.tools.ford_pinion_replay '<route>'
+```
+
+The safety replay defaults to the current compiled Ford hooks and supports CAN and
+CAN FD. It preserves recorded safety parameters and explicitly enables the private
+BluePilot flag. Missing SP metadata requires `--param-sp`; do not guess the pinion
+geometry bits. Full rlogs are required. The `--legacy-bpdev` mode restores the
+historical Explorer CAN simulator, including the donor's removed reset bypass;
+its per-check report and optional JSON are not current firmware safety verdicts.
+The separate pinion replay also models only the historical Explorer CAN geometry
+and rejects other platforms. Missing TX echoes alone do not prove a safety block.
+The yaw tool reports consistency or suspected faults and treats absent independent
+IMU/turning evidence as inconclusive; it does not automatically recommend a sensor
+toggle or certify sensor health. No real-route qualification is claimed here.
+
 Driver-monitoring policy and current shared safety/longitudinal disengagement code
 are retained. This port does not introduce automatic longitudinal re-engagement
 after brake release or an ACC MAIN-OFF exception.

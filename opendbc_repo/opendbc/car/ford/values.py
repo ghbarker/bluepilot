@@ -164,7 +164,7 @@ class CAR(Platforms):
     wmis={'3FM'}, vds_codes={'CR9'}, years={MY_2021, MY_2022, MY_2023, MY_2024},
   )
   FORD_EDGE_MK2 = FordPlatformConfig(
-    [FordCarDocs("Ford Edge 2022")],
+    [FordCarDocs("Ford Edge 2019-24")],
     CarSpecs(mass=1933, steerRatio=15.3, wheelbase=2.824),
     flags=FordFlags.ALT_STEER_ANGLE,
     wmis={'2FM'}, vds_codes={'PK4'}, years={MY_2022},

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import hashlib
 import os
+from pathlib import Path
+import shutil
 import subprocess
 
 # NOTE: Do NOT import anything here that needs be built (e.g. params)
@@ -8,6 +11,38 @@ from openpilot.common.spinner import Spinner
 from openpilot.common.text_window import TextWindow
 from openpilot.common.hardware import HARDWARE, AGNOS
 
+
+def sync_python_env(report=print) -> None:
+  """Reconcile the project venv after an update changes the pinned lockfile."""
+  lock = Path(BASEDIR) / "uv.lock"
+  if not lock.exists():
+    return
+  digest = hashlib.sha256(lock.read_bytes()).hexdigest()
+  # Match uv's project environment selection, including isolated build/test envs.
+  environment = Path(os.environ.get("UV_PROJECT_ENVIRONMENT", ".venv"))
+  if not environment.is_absolute():
+    environment = Path(BASEDIR) / environment
+  marker = environment / ".op_synced_lock"
+  if marker.exists() and marker.read_text().strip() == digest:
+    return
+
+  uv = shutil.which("uv") or str(Path.home() / ".local/bin/uv")
+  # Keep the lockfile frozen and preserve unrelated installed extras. Never mark
+  # a missing uv, interrupted install, or failed install as successfully synced.
+  command = [uv, "sync", "--frozen", "--inexact"]
+  with subprocess.Popen(command, cwd=BASEDIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as process:
+    assert process.stdout is not None
+    for line in process.stdout:
+      report(line.rstrip())
+    if process.wait() != 0:
+      raise subprocess.CalledProcessError(process.returncode, command)
+
+  marker.parent.mkdir(parents=True, exist_ok=True)
+  temporary = marker.with_suffix(".tmp")
+  temporary.write_text(digest)
+  temporary.replace(marker)
+
+
 def build() -> None:
   spinner = Spinner()
   spinner.update_progress(0, 100)
@@ -15,6 +50,15 @@ def build() -> None:
   HARDWARE.set_power_save(False)
   if AGNOS:
     os.sched_setaffinity(0, range(8))  # ensure we can use the isolcpus cores
+
+  try:
+    sync_python_env()
+  except (subprocess.CalledProcessError, OSError) as error:
+    spinner.close()
+    if not os.getenv("CI"):
+      with TextWindow(f"Failed to update dependencies: {error}\nCheck the internet connection, then reboot.") as window:
+        window.wait_for_exit()
+    raise SystemExit(1) from error
 
   # building with all cores can result in using too much memory, so retry serially
   compile_output: list[bytes] = []
