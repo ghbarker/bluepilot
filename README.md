@@ -1,3 +1,12 @@
+# SP-BPDEV development branch — release blocked
+
+This branch contains unqualified BluePilot Ford steering changes. The owner review
+found incomplete coverage of additional steering inputs and failing safety C static
+checks. Do not treat installation or passing unit tests as driving qualification.
+See the [current review findings](tools/bluepilot_chestnut/README.md#owner-review-2026-09-19)
+before using or distributing this branch. The upstream description below does not
+establish safety-rule compliance for SP-BPDEV.
+
 ![](https://user-images.githubusercontent.com/47793918/233812617-beab2e71-57b9-479e-8bff-c3931347ca40.png)
 
 ## 🌞 What is sunnypilot?

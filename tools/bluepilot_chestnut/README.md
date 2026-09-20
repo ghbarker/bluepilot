@@ -146,6 +146,65 @@ bench, and controlled vehicle evidence before fleet release.
 
 ## Build and validation
 
+### Owner review, 2026-09-19
+
+**Release blocked.** This review does not establish vehicle safety or compliance
+with [comma's fork safety policy](https://docs.comma.ai/concepts/safety/).
+It supersedes any inference of readiness from installation or green CI.
+
+The firmware checks curvature, path angle, path offset and curvature-rate inputs
+separately. In angle mode the additional curvature check reads host-supplied shadow
+telemetry; it does not derive that curvature from the actual path-angle command.
+The mode flag and shadow come from the same host that produces steering commands.
+They therefore do not independently establish the steering command's effect.
+In an isolated command-acceptance test at 25 m/s, with zero measured, wire and
+shadow curvature, accepted 0.0005-rad path-angle steps reached +/-0.25 rad in
+curvature mode and +/-0.5 rad in angle mode, on both CAN and CAN FD. No nonzero
+history was pre-seeded. These are encoded path-angle inputs, not steering-wheel
+angles. The test does not simulate a moving vehicle or RX liveness and does not
+establish a resulting lateral acceleration. It demonstrates why the curvature
+check alone cannot qualify all four steering inputs. This design is inherited
+from BP-DEV; retaining it is not independent safety evidence.
+
+The pinned Cppcheck 2.21.0 package (comma dependencies commit
+`b7253ddb101ed6add04fc2a2ce0688d5e21a55ee`) was run with the repository's MISRA
+options on isolated safety source from the pinned base and `d78cc7a358`.
+The base passed with zero findings. This branch returned exit 2 with 23 findings:
+21 MISRA findings (block scope, composite casts and multiple returns) and two
+constant-condition findings. These are coding-check failures, not 23 demonstrated
+vehicle-control failures. They remain unresolved; the current workflow excludes
+the separate MISRA and analyzer-mutation tests.
+
+For context, CI at `d78cc7a358` passed 8,274 tests and 17,183 subtests, with 3,405
+skips. It does not cover the two qualification gaps above. The unchanged shared
+`safety/lateral.h` and driver-monitoring source were also checked. Preserving
+those files does not prove that all extensions respect their intended safeguards.
+
+The Ford angle controller's warning logic matches the BP-DEV donor, and the
+steering-required event block matches the pinned upstream base. The warning
+requires sustained steering tracking error or curvature clipping, more than 20%
+undershoot, desired lateral acceleration above 1 m/s^2 and no recent driver
+steering input. Completing a turn later does not establish that an earlier
+warning was spurious. No warning threshold or actuator limit was changed by the
+display corrections. A recording of the reported warning is still needed.
+
+The arc estimates steering effort against `CarParams.maxLateralAccel`; for the
+Mach-E the inherited table uses a guessed 1.5 m/s^2. It is not measured EPS torque,
+remaining steering range or a common scale for all firmware limits. The review
+reproduced a wrong-direction display when road-bank compensation exceeded a small
+turn demand, and stale direction after a reversal. Corrections constrain the
+display to the requested direction, clear invalid/dead/non-finite readings,
+handle curvature-state messages, and explain the estimate in settings. Rendering
+tests cover both display sizes, turn directions, reversals, data loss and invalid
+normalization. Accurate physical saturation would require validated vehicle
+feedback and controller telemetry, including limits on the auxiliary inputs.
+
+Additional schema checks found the older display still using `liveCalibration`
+instead of `extrinsicsCalibration`, and diagnostic rows using removed brake and
+longitudinal proportional-gain fields. Those display consumers are corrected and
+tested using current message types. These are source-level corrections; the
+owner-review changes have not been installed or verified on a vehicle.
+
 ### Device startup corrections, 2026-09-19
 
 A comma four/Mach-E installation exposed two migration defects. The BP menu used
