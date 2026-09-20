@@ -2,7 +2,7 @@ name: BluePilot Chestnut source validation
 
 on:
   push:
-    branches: [cursor/chestnut-ford-overlay-4d25]
+    branches: [SP-BPDEV]
   pull_request:
   workflow_dispatch:
 
