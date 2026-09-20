@@ -115,6 +115,10 @@ class LateralCurvExt:
     # lateralDelay is consumed by LateralAngleExt (variable lookup time); harmless for curvature mode.
     self.sm = messaging.SubMaster(['modelV2', 'vehicleParameters', 'selfdriveState', 'radarState', 'lateralDelay'])
     self.VM = VehicleModel(CP)
+    # BluePilot: keep the independent firmware reference separate from the learned
+    # driving model. Pinion safety uses fixed geometry and no offset/roll correction.
+    self.safety_VM = VehicleModel(CP)
+    # End BluePilot
     self.model = None
     self.lp = None
     self.ss = None
@@ -242,12 +246,9 @@ class LateralCurvExt:
   def get_current_curvature(self, CS):
     """Measured curvature of the car right now (OP sign convention).
 
-    The single measurement source for every BluePilot lateral consumer: the deviation
-    clip, the stall detector, and the shadow curvature published to ford.h's angle-mode
-    deviation check. The default source is the RCM yaw rate -- the same family stock
-    ford.h derives its angle_meas from. The shadow value judged against that check must
-    always come from the same measurement as the check's own reference, so route all
-    reads through here.
+    Learned measurement used by the driving controller and stall detector. The
+    independent firmware reference is get_safety_curvature: pinion mode's learned
+    steering ratio, offset and roll can differ from the firmware's fixed geometry.
 
     With the steering-angle curvature measurement enabled (FordPrefSteerAngleCurvature
     toggle -> FordSafetyFlagsSP.STEER_ANGLE_CURVATURE), the pinion angle via the vehicle
@@ -255,8 +256,8 @@ class LateralCurvExt:
     broadcast implausible VehYaw_W_Actl (sign-inverted vs IMU and steering geometry)
     while its CAN quality flag still reads OK. The pinion angle (SteeringPinion_Data,
     PSCM) is an equivalent measurement, independently validated against the comma IMU
-    (corr +0.99), and the panda safety angle_meas switches to the same source (see
-    safety/modes/ford.h) -- the layers always agree. angleOffsetDeg/roll come from
+    (corr +0.99), and the panda safety angle_meas switches to the same sensor (see
+    safety/modes/ford.h), with different compensation. angleOffsetDeg/roll come from
     vehicleParameters (paramsd, IMU-derived, not the car yaw sensor).
     """
     if self.bp_pinion_curvature_enabled:
@@ -265,6 +266,15 @@ class LateralCurvExt:
       return -self.VM.calc_curvature(math.radians(CS.out.steeringAngleDeg - angle_offset_deg),
                                      CS.out.vEgoRaw, roll)
     return -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
+
+  # BluePilot: model the existing safety reference without changing the learned
+  # driving model or sending a compensated measurement to the independent board.
+  def get_safety_curvature(self, CS):
+    if self.bp_pinion_curvature_enabled:
+      return -self.safety_VM.calc_curvature(math.radians(CS.out.steeringAngleDeg),
+                                            max(CS.out.vEgoRaw, 0.1), 0.0)
+    return -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
+  # End BluePilot
 
   def update_sm(self):
     """Update SubMaster and vehicle model. Called each frame before lateral/long update."""

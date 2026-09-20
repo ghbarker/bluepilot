@@ -502,6 +502,20 @@ class LateralAngleExt:
       _kappa_cmd_pre_error_clip = kappa_cmd
       kappa_cmd = float(clip(kappa_cmd, current_curvature - CarControllerParams.CURVATURE_ERROR,
                             current_curvature + CarControllerParams.CURVATURE_ERROR))
+      # BluePilot: pinion safety uses fixed geometry with no learned ratio, offset
+      # or roll compensation. Keep the existing learned-model limit, and intersect
+      # it with the board's 150-CAN-unit (0.003 1/m) pinion deviation envelope.
+      # Limit the actual input to path_angle, not just the shadow reported to panda.
+      # Firmware keeps its independent measurement, sample window and rounding slack.
+      if self.bp_pinion_curvature_enabled:
+        safety_curvature = self.get_safety_curvature(CS)
+        lower = max(current_curvature - CarControllerParams.CURVATURE_ERROR, safety_curvature - 0.003)
+        upper = min(current_curvature + CarControllerParams.CURVATURE_ERROR, safety_curvature + 0.003)
+        if lower <= upper:
+          kappa_cmd = float(clip(kappa_cmd, lower, upper))
+        # If the references have no overlap, retain the existing request and the
+        # board's rejection path. Do not fabricate a value outside either limit.
+      # End BluePilot
       # BluePilot: did this clip actually constrain kappa_cmd this frame (deviation from measured,
       # not rate-of-change -- see carcontroller.py)?
       self.bp_curvature_deviation_limited = bool(abs(kappa_cmd - _kappa_cmd_pre_error_clip) > 1e-9)

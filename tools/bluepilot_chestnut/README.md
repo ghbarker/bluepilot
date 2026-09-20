@@ -152,6 +152,53 @@ bench, and controlled vehicle evidence before fleet release.
 with [comma's fork safety policy](https://docs.comma.ai/concepts/safety/).
 It supersedes any inference of readiness from installation or green CI.
 
+### Command-consistency repair, 2026-09-20
+
+The angle controller now intersects its existing learned-measurement command band
+with the firmware's fixed-geometry pinion band (0.003 1/m). It uses an unlearned
+vehicle model, raw pinion angle and raw speed for this second reference. It limits
+the curvature input used to calculate the actual path-angle request, not only the
+shadow value. Requests inside both bands retain their original values. If the
+bands do not overlap, the original request remains subject to the unchanged
+firmware rejection and takeover path; the controller does not invent a matching
+shadow value or widen either band. Learned driving parameters remain in use.
+
+On ticks where both LKA status and LMC steering messages are due, status is queued
+first. The existing 33.3 Hz and 20 Hz schedules and message counts are unchanged.
+Other tick phases still use the previously latched status; this is not an atomic
+protocol or a guarantee against delayed or dropped CAN messages.
+
+Private offline replay covered 23 captured segments in four contiguous blocks
+(one recording has a missing segment). It fed recorded CAN inputs through the
+unchanged compiled safety hooks while regenerating the actual angle-controller
+requests. The original recorded stream and the reconstructed old controller both
+reproduced the 30-command pinion-deviation rejection sequence. The corrected
+controller produced zero rejections in that block. Across 26,130 regenerated
+steering frames, 34 actual command payloads changed, all in the affected block.
+The largest path-angle change in the recorded failure window was 0.007 rad of
+encoded path-angle input; this is not a steering-wheel angle measurement.
+
+The other blocks retained their independent rejection cases. Fresh status made
+the existing acceleration cap reject one frame earlier during a driver steering
+press: the shadow value was 404 CAN units against a cap of 376. That protection
+was retained. No safety limit, safety-hook source, driver-monitoring policy,
+engagement permission, takeover alert or model artifact changes are included.
+
+This is counterfactual command-acceptance evidence, not a vehicle simulation or
+device validation. The reconstructed baseline differs from some recorded frames
+because process scheduling and internal state are not reproduced exactly. The
+comparison uses the same reconstruction for old and corrected controllers, and
+the original stream separately reproduces the target fault. It does not prove
+that Ford's later ramp-out would have been prevented. Private recordings are not
+included in the repository.
+
+Regression tests exercise both steering directions, unchanged in-band requests,
+all supported pinion geometries, fixed versus learned calibration, non-overlapping
+bands, stale values, the independent acceleration cap, and all 15 relative
+message-schedule phases. The full vehicle safety suite and C safety checks remain
+required. The qualification gap described below still blocks a blanket claim of
+comma-policy compliance or readiness for driving/fleet release.
+
 The firmware checks curvature, path angle, path offset and curvature-rate inputs
 separately. In angle mode the additional curvature check reads host-supplied shadow
 telemetry; it does not derive that curvature from the actual path-angle command.

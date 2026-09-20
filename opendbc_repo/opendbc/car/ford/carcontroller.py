@@ -58,6 +58,7 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
 
   def update(self, CC, CC_SP, CS, now_nanos):
     can_sends = []
+    lateral_msg_index = None
 
     # BluePilot: update SubMaster (modelV2, liveParameters, selfdriveState, radarState) and vehicle model
     LateralCurvExt.update_sm(self)
@@ -169,6 +170,7 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
           self.curvatureRateLimited = abs(limited - lat.apply_curvature) > 1e-9
           lat = lat._replace(apply_curvature=limited)
         self.apply_curvature_last = lat.apply_curvature
+        lateral_msg_index = len(can_sends)
         if self.CP.flags & FordFlags.CANFD:
           mode = 1 if lat_active else 0
           counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
@@ -197,9 +199,16 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
       # deviation check found a "divergence" on every frame once speed crossed angle_error_min_speed.
       angle_mode_engaged = (not self.disable_BP_lat_UI) and (self.primary_lateral_control == PrimaryLateralControl.angle)
       shadow_curvature = -self.bp_kappa_cmd if angle_mode_engaged else 0.0
-      can_sends.append(fordcan_ext.create_lka_msg(
+      lka_msg = fordcan_ext.create_lka_msg(
         self.packer, self.CAN, CC.latActive, hud_control, angle_mode_engaged, shadow_curvature
-      ))
+      )
+      # BluePilot: when both messages are due, latch this frame's safety value
+      # before its steering request. Preserve the existing 33 Hz / 20 Hz schedules.
+      if angle_mode_engaged and lateral_msg_index is not None:
+        can_sends.insert(lateral_msg_index, lka_msg)
+      else:
+        can_sends.append(lka_msg)
+      # End BluePilot
 
     ### longitudinal control ###
     # send acc msg at 50Hz
