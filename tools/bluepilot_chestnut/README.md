@@ -1,6 +1,6 @@
 # BluePilot Ford overlay on sunnypilot Chestnut
 
-This migration branch ports the pinned BluePilot `bp-dev` Ford controls, vehicle support,
+This follow-up branch extends the migration that ports the pinned BluePilot `bp-dev` Ford controls, vehicle support,
 settings, dashboard, sounds, telemetry, and Portal onto the packaged sunnypilot
 `staging-chestnut` base. It is a source-build candidate. Target-device installation,
 Panda flashing, Chestnut model loading, and driving have not been qualified.
@@ -197,21 +197,35 @@ resolve the auxiliary-actuator qualification gap. The unchanged shared
 `safety/lateral.h` and driver-monitoring source were also checked. Preserving
 those files does not prove that all extensions respect their intended safeguards.
 
-The warning trigger and presentation remain inherited in this migration PR.
-Captured Mach-E logs show 30 consecutive rejected steering commands over roughly
-1.5 seconds, followed by temporary steering unavailability. Offline safety replay
-reproduced that rejection sequence. The host's intended-curvature measurement
-disagrees with the safety board's independently calculated envelope. This remains
-unresolved and is a release blocker; passing tests does not fix or qualify it.
-Private recordings are not included in this repository.
+This follow-up corrects arc direction/freshness and adds fresh Ford-reported
+near/reached-limit colors and labels. Missing feedback shows unknown capacity;
+length remains estimated demand. The feedback is read-only and does not activate
+the donor's dormant controller branches. The existing command-rejection/loss-of-
+assistance finding remains unresolved.
 
-The arc's direction/freshness corrections, Ford-reported limit display, and
-recovery-aware warning presentation are reserved for the follow-up branch. They
-are absent from this migration PR. The inherited arc is an estimate of demand,
-not established remaining physical steering capacity.
+### Ford warning presentation, 2026-09-19
 
-The current-schema repairs for lead displays, calibration-service access, and
-removed debug fields are included here because they prevent migration crashes.
+The Ford steering warning now distinguishes a tracking shortfall ("Steering Not
+Keeping Up") from fresh PSCM feedback reporting a near/reached steering limit.
+The event trigger, priority, steering-required HUD signal, visual lifetime,
+controller requests, limits, and safety checks are unchanged. This is presentation
+only; the optional feedback subscription cannot gate engagement or health checks.
+
+A retained warning changes to "Steering Alert / Check Steering Response" only
+after the trigger clears and 0.3 seconds of fresh, active, fault-free telemetry
+confirms tracking within the existing angle/acceleration criteria and Ford reports
+no limit. Driver override, low speed, stale/missing data, or a reported limit does
+not qualify. After at least one second of the initial warning, the recovered tail
+stops requesting repeated sound. A renewed trigger restores the takeover wording
+and sound immediately. Critical alerts are untouched.
+
+Offline replay of 23 captured full log segments retained noise throughout every
+active warning trigger, including the recorded steering-command rejection/fault
+window. The known recovered transient quieted only during its retained tail.
+Unit/integration tests cover stale data, overrides, faults, non-finite inputs,
+limits, recurrence, alert priority/lifetime, non-Ford behavior, and unchanged
+requests. Both screen sizes were rendered. This does not fix the separately
+observed command rejection or qualify the branch for road/fleet use.
 
 ### Device startup corrections, 2026-09-19
 
