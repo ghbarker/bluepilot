@@ -1,0 +1,44 @@
+name: BluePilot Chestnut preparation checks (not release qualification)
+
+on:
+  push:
+    branches: [cursor/chestnut-ford-overlay-4d25]
+  pull_request:
+    paths:
+      - 'tools/bluepilot_chestnut/**'
+      - '.github/workflows/bluepilot-chestnut-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Fetch pinned reference commits for read-only checks
+        run: |
+          git fetch --no-tags --filter=blob:none https://github.com/sunnypilot/sunnypilot.git dd29072b71a06c9ce125a481ced431ba995b84f6
+          git fetch --no-tags --filter=blob:none https://github.com/BluePilotDev/bluepilot.git e22afa6be9b881fa784c92ebb316db47728a3d81
+      - name: Install standalone Ford safety test dependencies
+        run: |
+          python3 -m venv /tmp/bluepilot-preflight-venv
+          /tmp/bluepilot-preflight-venv/bin/pip install numpy cffi pycapnp==2.1.0 pycryptodome tqdm
+      - name: Test preflight failure handling
+        run: python3 -m unittest tools.bluepilot_chestnut.test_preflight
+      - name: Confirm blocked status and reproduce donor C API incompatibility
+        shell: bash
+        run: |
+          set +e
+          python3 tools/bluepilot_chestnut/preflight.py --probe-donor
+          status=$?
+          set -e
+          test "$status" -eq 2
+      - name: Test unchanged upstream Ford safety baseline
+        env:
+          PYTHONPATH: ${{ github.workspace }}/opendbc_repo
+        run: /tmp/bluepilot-preflight-venv/bin/python -m unittest opendbc.safety.tests.test_ford
