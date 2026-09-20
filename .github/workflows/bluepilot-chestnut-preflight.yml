@@ -34,7 +34,11 @@ jobs:
           export PATH="$RUNNER_TEMP/uv-bootstrap/bin:$PATH"
           uv sync --locked --extra submodules --extra tools
           uv pip install --python "$VIRTUAL_ENV/bin/python" pytest pytest-xdist scipy pillow ruff ruamel.yaml jsonschema
+          # Same exact analyzer revision as opendbc_repo/uv.lock.
+          uv pip install --python "$VIRTUAL_ENV/bin/python" 'cppcheck @ git+https://github.com/commaai/dependencies.git@b7253ddb101ed6add04fc2a2ce0688d5e21a55ee#subdirectory=cppcheck'
           echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+      - name: Check all safety C sources and verify deliberate Ford violations are rejected
+        run: python tools/bluepilot_chestnut/check_safety_misra.py
       - name: Build native consumers and Panda firmware without compiling driving models
         run: scons --minimal -j4
       - name: Test all vehicle safety hooks and Ford control, UI, and integration
