@@ -353,14 +353,14 @@ int get_ford_pinion_geometry_count(void){
 }
 
 float get_ford_pinion_geometry_slip_factor(int idx){
-  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_pinion_geometry[idx].slip_factor : 0.0f;
+  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_get_pinion_params((uint16_t)idx)->slip_factor : 0.0f;
 }
 
 float get_ford_pinion_geometry_steer_ratio(int idx){
-  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_pinion_geometry[idx].steer_ratio : 0.0f;
+  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_get_pinion_params((uint16_t)idx)->steer_ratio : 0.0f;
 }
 
 float get_ford_pinion_geometry_wheelbase(int idx){
-  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_pinion_geometry[idx].wheelbase : 0.0f;
+  return ((idx >= 0) && (idx <= (int)FORD_OVERLAY_PINION_GEOMETRY_COUNT)) ? ford_overlay_get_pinion_params((uint16_t)idx)->wheelbase : 0.0f;
 }
 #endif

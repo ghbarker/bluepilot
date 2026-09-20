@@ -172,11 +172,28 @@ options on isolated safety source from the pinned base and `d78cc7a358`.
 The base passed with zero findings. This branch returned exit 2 with 23 findings:
 21 MISRA findings (block scope, composite casts and multiple returns) and two
 constant-condition findings. These are coding-check failures, not 23 demonstrated
-vehicle-control failures. They remain unresolved; the current workflow excludes
-the separate MISRA and analyzer-mutation tests.
+vehicle-control failures. These findings are now corrected with block-local
+constants, explicit conversion intermediates, single-return dispatch and
+compile-time debug configuration. BP steering modes, limits and warning thresholds
+are preserved. The unchanged analyzer now reports zero findings. A new workflow
+step also requires the analyzer to reject deliberately reintroduced Ford composite
+casts and early returns; it checks the pinned MISRA coverage table and uses the
+same analysis options and suppressions as the upstream safety script. Both release
+and debug configurations are now checked explicitly. The debug configuration also
+exposed an inherited Rivian signed flag-type mismatch; matching its type to the
+unsigned safety parameter corrects that diagnostic without changing the flag value
+or actuation limits.
+
+An isolated before/after comparison of compiled release and debug hooks matched
+all 65,536 shadow conversion values in each build, 24,000 metadata frames, 24,000
+RX/TX frames and 128,000 steering frames with checked state histories. This is
+regression evidence for the refactor, not proof that the inherited steering
+envelope is safe. The local safety and Ford controller suites passed 8,103 tests
+and 17,183 subtests, with 3,399 skips.
 
 For context, CI at `d78cc7a358` passed 8,274 tests and 17,183 subtests, with 3,405
-skips. It does not cover the two qualification gaps above. The unchanged shared
+skips. That earlier result excluded the static-analysis failures and did not
+resolve the auxiliary-actuator qualification gap. The unchanged shared
 `safety/lateral.h` and driver-monitoring source were also checked. Preserving
 those files does not prove that all extensions respect their intended safeguards.
 
@@ -250,6 +267,8 @@ export SKIP_TINYGRAD_COMPILE=1
 python tools/bluepilot_chestnut/preflight.py
 scons --minimal -j4
 uv pip install pytest pytest-xdist scipy pillow ruff ruamel.yaml jsonschema
+uv pip install 'cppcheck @ git+https://github.com/commaai/dependencies.git@b7253ddb101ed6add04fc2a2ce0688d5e21a55ee#subdirectory=cppcheck'
+python tools/bluepilot_chestnut/check_safety_misra.py
 python -m pytest -q \
   opendbc_repo/opendbc/safety/tests \
   --ignore=opendbc_repo/opendbc/safety/tests/misra \
@@ -265,8 +284,11 @@ The full minimal native build, including Panda ARM firmware, has passed locally
 in Ubuntu 24.04. TICI and MICI layouts have been constructed and rendered under
 Xvfb. Hardware networking and camera/vehicle operation were not exercised there.
 The workflow repeats the build, all vehicle safety-hook tests, and focused Ford
-integration tests from a clean Linux checkout. The separate MISRA static-analysis
-and analyzer-mutation tests are not included in this workflow.
+integration tests from a clean Linux checkout. It now also runs safety MISRA
+analysis and two deterministic Ford analyzer-mutation checks through
+`check_safety_misra.py`. The upstream randomized mutation runner is still excluded
+from pytest; the new gate uses its untouched safety sources, pinned analyzer,
+coverage table, analysis flags and suppression list without its dependency setup.
 
 All 18 precompiled 1B driving-model chunks and their manifest are inherited
 unchanged and SHA-256 checked against `model_artifacts.json`. Neither local

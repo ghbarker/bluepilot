@@ -160,100 +160,7 @@ static bool ford_overlay_get_quality_flag_valid(const CANPacket_t *msg) {
   .inactive_angle_is_zero = true,                                                               \
 }
 
-// PathAngle rate limits
-static const FordBluePilotPathLimits FORD_OVERLAY_PATH_ANGLE_LIMITS = {
-  .max_angle = 1000,
-  // 0.0005
-  .angle_deg_to_can = 2000,        // 1 / (2e-5) rad to can
-  .max_angle_error = 4,           // 0.002 * FORD_OVERLAY_STEERING_LIMITS.angle_deg_to_can
-  // Mirror lateral_angle_ext.py _soft_roc: interp(v_ego, [9,10,15,25], [0.055,0.055,0.0425,0.009])
-  // rad/call, scaled x1.02 so panda is 2% LOOSER than the Python control and never blocks LMC2.
-  // lookup_t is fixed at 3 points; Python's 9 & 10 m/s nodes are both 0.055 (flat top), so {10,15,25}
-  // reproduces the curve exactly and speeds <10 clamp to the first point. The +1 CAN unit and the
-  // speed-1 fudge in ford_overlay_path_angle_cmd_checks add extra headroom on top of the 2%.
-  // BluePilot: LMC2 is only sent once per CarControllerParams.STEER_STEP (5) = 20Hz, not 100Hz --
-  // _soft_roc's y-values (and this mirror) are per-call, not per-100Hz-tick; see lateral_angle_ext.py.
-  .angle_rate_up_lookup = {
-    .x = {10., 15., 25.},
-    .y = {0.0561, 0.04335, 0.00918}
-  },
-  .angle_rate_down_lookup = {
-    .x = {10., 15., 25.},
-    .y = {0.0561, 0.04335, 0.00918}
-  },
-  .angle_error_min_speed = 9.9,   // m/s
-  .frequency = 20U,               // Hz -- LateralMotionControl/LateralMotionControl2 @ 20Hz (matches
-                                  // actual STEER_STEP=5 cadence; was 100U, a stale leftover from an
-                                  // abandoned 100Hz-cadence experiment. Currently unread by
-                                  // ford_overlay_path_angle_cmd_checks (only angle_rate_up/down_lookup matter),
-                                  // but corrected for consistency/documentation and in case a future
-                                  // rt_angle_rate_limit_check() wiring starts consuming it.
-
-  .enforce_angle_error = true,
-  .inactive_angle_is_zero = true,
-};
-
-// PathOffset rate limits
-static const FordBluePilotPathLimits FORD_OVERLAY_PATH_OFFSET_LIMITS = {
-  .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
-  .angle_deg_to_can = 100,        // 1 / (0.01) meter to can
-  .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
-  .angle_rate_up_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_rate_down_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
-  .frequency = 20U,               // Hz - 20Hz message rate
-
-  .enforce_angle_error = true,
-  .inactive_angle_is_zero = true,
-};
-
-// PathOffset rate limits
-static const FordBluePilotPathLimits FORD_OVERLAY_CURVATURE_RATE_LIMITS_CAN = {
-  .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
-  .angle_deg_to_can = 4000000,    // 1 / (1E-6) meter to can
-  .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
-  .angle_rate_up_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_rate_down_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
-  .frequency = 20U,               // Hz - 20Hz message rate
-
-  .enforce_angle_error = true,
-  .inactive_angle_is_zero = true,
-};
-
-static const FordBluePilotPathLimits FORD_OVERLAY_CURVATURE_RATE_LIMITS_CANFD = {
-  .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
-  .angle_deg_to_can = 1000000,    // 1 / (1E-6) meter to can
-  .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
-  .angle_rate_up_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_rate_down_lookup = {
-    .x = {5., 15., 25.},
-    .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
-  },
-  .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
-  .frequency = 20U,               // Hz - 20Hz message rate
-
-  .enforce_angle_error = true,
-  .inactive_angle_is_zero = true,
-};
-
 static const FordBluePilotPathLimits FORD_OVERLAY_STEERING_LIMITS = FORD_OVERLAY_LIMITS(false, 100);
-static const FordBluePilotPathLimits FORD_OVERLAY_STEERING_LIMITS_PINION = FORD_OVERLAY_LIMITS(false, 150);
 
 // BluePilot: per-platform geometry for pinion-angle -> curvature conversion (the optional
 // angle_meas source), selected by the 4-bit geometry index in current_safety_param_sp
@@ -265,26 +172,31 @@ static const FordBluePilotPathLimits FORD_OVERLAY_STEERING_LIMITS_PINION = FORD_
 // FORD_OVERLAY_EDGE_MK2 (ALT_STEER_ANGLE: relative pinion angle + learned offset) is unsupported
 // and deliberately absent.
 #define FORD_OVERLAY_PINION_GEOMETRY_COUNT 12U
-static const AngleSteeringParams ford_overlay_pinion_geometry[FORD_OVERLAY_PINION_GEOMETRY_COUNT + 1U] = {
-  {.slip_factor = 0.0f, .steer_ratio = 1.0f, .wheelbase = 1.0f},                  // 0: invalid
-  {.slip_factor = -0.00062819555f, .steer_ratio = 17.7f, .wheelbase = 2.670f},    // 1: FORD_OVERLAY_BRONCO_SPORT_MK1
-  {.slip_factor = -0.00061892325f, .steer_ratio = 16.7f, .wheelbase = 2.710f},    // 2: FORD_OVERLAY_ESCAPE_MK4
-  {.slip_factor = -0.00061892325f, .steer_ratio = 16.7f, .wheelbase = 2.710f},    // 3: FORD_OVERLAY_ESCAPE_MK4_5
-  {.slip_factor = -0.00045454798f, .steer_ratio = 17.0f, .wheelbase = 3.690f},    // 4: FORD_OVERLAY_EXPEDITION_MK4
-  {.slip_factor = -0.00055447339f, .steer_ratio = 16.8f, .wheelbase = 3.025f},    // 5: FORD_OVERLAY_EXPLORER_MK6
-  {.slip_factor = -0.00062121569f, .steer_ratio = 15.0f, .wheelbase = 2.700f},    // 6: FORD_OVERLAY_FOCUS_MK4
-  {.slip_factor = -0.00045331952f, .steer_ratio = 16.9f, .wheelbase = 3.700f},    // 7: FORD_OVERLAY_F_150_LIGHTNING_MK1
-  {.slip_factor = -0.00042037149f, .steer_ratio = 17.0f, .wheelbase = 3.990f},    // 8: FORD_OVERLAY_F_150_MK14
-  {.slip_factor = -0.00054528036f, .steer_ratio = 17.0f, .wheelbase = 3.076f},    // 9: FORD_OVERLAY_MAVERICK_MK1
-  {.slip_factor = -0.00058852001f, .steer_ratio = 14.8f, .wheelbase = 2.850f},    // 10: FORD_OVERLAY_MONDEO_MK5
-  {.slip_factor = -0.00056209187f, .steer_ratio = 17.0f, .wheelbase = 2.984f},    // 11: FORD_OVERLAY_MUSTANG_MACH_E_MK1
-  {.slip_factor = -0.00051293030f, .steer_ratio = 17.0f, .wheelbase = 3.270f},    // 12: FORD_OVERLAY_RANGER_MK2
-};
+static const AngleSteeringParams *ford_overlay_get_pinion_params(uint16_t index) {
+  static const AngleSteeringParams ford_overlay_pinion_geometry[FORD_OVERLAY_PINION_GEOMETRY_COUNT + 1U] = {
+    {.slip_factor = 0.0f, .steer_ratio = 1.0f, .wheelbase = 1.0f},                  // 0: invalid
+    {.slip_factor = -0.00062819555f, .steer_ratio = 17.7f, .wheelbase = 2.670f},    // 1: FORD_OVERLAY_BRONCO_SPORT_MK1
+    {.slip_factor = -0.00061892325f, .steer_ratio = 16.7f, .wheelbase = 2.710f},    // 2: FORD_OVERLAY_ESCAPE_MK4
+    {.slip_factor = -0.00061892325f, .steer_ratio = 16.7f, .wheelbase = 2.710f},    // 3: FORD_OVERLAY_ESCAPE_MK4_5
+    {.slip_factor = -0.00045454798f, .steer_ratio = 17.0f, .wheelbase = 3.690f},    // 4: FORD_OVERLAY_EXPEDITION_MK4
+    {.slip_factor = -0.00055447339f, .steer_ratio = 16.8f, .wheelbase = 3.025f},    // 5: FORD_OVERLAY_EXPLORER_MK6
+    {.slip_factor = -0.00062121569f, .steer_ratio = 15.0f, .wheelbase = 2.700f},    // 6: FORD_OVERLAY_FOCUS_MK4
+    {.slip_factor = -0.00045331952f, .steer_ratio = 16.9f, .wheelbase = 3.700f},    // 7: FORD_OVERLAY_F_150_LIGHTNING_MK1
+    {.slip_factor = -0.00042037149f, .steer_ratio = 17.0f, .wheelbase = 3.990f},    // 8: FORD_OVERLAY_F_150_MK14
+    {.slip_factor = -0.00054528036f, .steer_ratio = 17.0f, .wheelbase = 3.076f},    // 9: FORD_OVERLAY_MAVERICK_MK1
+    {.slip_factor = -0.00058852001f, .steer_ratio = 14.8f, .wheelbase = 2.850f},    // 10: FORD_OVERLAY_MONDEO_MK5
+    {.slip_factor = -0.00056209187f, .steer_ratio = 17.0f, .wheelbase = 2.984f},    // 11: FORD_OVERLAY_MUSTANG_MACH_E_MK1
+    {.slip_factor = -0.00051293030f, .steer_ratio = 17.0f, .wheelbase = 3.270f},    // 12: FORD_OVERLAY_RANGER_MK2
+  };
+  return &ford_overlay_pinion_geometry[index];
+}
+
 
 // BluePilot: steering-angle curvature measurement state (STEER_ANGLE_CURVATURE), set once
 // in ford_overlay_init from current_safety_param_sp. Default off = stock yaw-sourced angle_meas.
 static bool ford_overlay_bp_pinion_curvature = false;
-static const AngleSteeringParams *ford_overlay_bp_pinion_params = &ford_overlay_pinion_geometry[0];
+static const AngleSteeringParams FORD_OVERLAY_DEFAULT_PINION_PARAMS = {.slip_factor = 0.0f, .steer_ratio = 1.0f, .wheelbase = 1.0f};
+static const AngleSteeringParams *ford_overlay_bp_pinion_params = &FORD_OVERLAY_DEFAULT_PINION_PARAMS;
 
 
 
@@ -307,7 +219,10 @@ static int16_t ford_overlay_bp_shadow_curvature_raw = 0;  // wire units, scale 1
 // shadow_curvature is packed at scale 1e-6 1/m; convert to the CAN units steer_angle_cmd_checks
 // expects, matching FORD_OVERLAY_STEERING_LIMITS/FORD_OVERLAY_CANFD_STEERING_LIMITS.angle_deg_to_can (50000, i.e.
 // physical scale 2e-5): raw * 1e-6 * 50000 = raw * 0.05.
-#define FORD_OVERLAY_BP_SHADOW_CURVATURE_TO_CAN(raw) ((int)((float)(raw) * 0.05f))
+static int ford_overlay_shadow_curvature_to_can(int16_t raw) {
+  const float curvature_can = (float)raw * 0.05f;
+  return (int)curvature_can;
+}
 
 static bool ford_overlay_path_angle_cmd_checks(int desired_path_angle, bool steer_control_enabled, const FordBluePilotPathLimits limits) {
   bool violation = false;
@@ -509,6 +424,94 @@ static void ford_overlay_rx_hook(const CANPacket_t *msg) {
 }
 
 static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
+  // Actuator limits are local to the only hook that consumes them.
+  static const FordBluePilotPathLimits FORD_OVERLAY_PATH_ANGLE_LIMITS = {
+    .max_angle = 1000,
+    // 0.0005
+    .angle_deg_to_can = 2000,        // 1 / (2e-5) rad to can
+    .max_angle_error = 4,           // 0.002 * FORD_OVERLAY_STEERING_LIMITS.angle_deg_to_can
+    // Mirror lateral_angle_ext.py _soft_roc: interp(v_ego, [9,10,15,25], [0.055,0.055,0.0425,0.009])
+    // rad/call, scaled x1.02 so panda is 2% LOOSER than the Python control and never blocks LMC2.
+    // lookup_t is fixed at 3 points; Python's 9 & 10 m/s nodes are both 0.055 (flat top), so {10,15,25}
+    // reproduces the curve exactly and speeds <10 clamp to the first point. The +1 CAN unit and the
+    // speed-1 fudge in ford_overlay_path_angle_cmd_checks add extra headroom on top of the 2%.
+    // BluePilot: LMC2 is only sent once per CarControllerParams.STEER_STEP (5) = 20Hz, not 100Hz --
+    // _soft_roc's y-values (and this mirror) are per-call, not per-100Hz-tick; see lateral_angle_ext.py.
+    .angle_rate_up_lookup = {
+      .x = {10., 15., 25.},
+      .y = {0.0561, 0.04335, 0.00918}
+    },
+    .angle_rate_down_lookup = {
+      .x = {10., 15., 25.},
+      .y = {0.0561, 0.04335, 0.00918}
+    },
+    .angle_error_min_speed = 9.9,   // m/s
+    .frequency = 20U,               // Hz -- LateralMotionControl/LateralMotionControl2 @ 20Hz (matches
+                                    // actual STEER_STEP=5 cadence; was 100U, a stale leftover from an
+                                    // abandoned 100Hz-cadence experiment. Currently unread by
+                                    // ford_overlay_path_angle_cmd_checks (only angle_rate_up/down_lookup matter),
+                                    // but corrected for consistency/documentation and in case a future
+                                    // rt_angle_rate_limit_check() wiring starts consuming it.
+
+    .enforce_angle_error = true,
+    .inactive_angle_is_zero = true,
+  };
+  static const FordBluePilotPathLimits FORD_OVERLAY_PATH_OFFSET_LIMITS = {
+    .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
+    .angle_deg_to_can = 100,        // 1 / (0.01) meter to can
+    .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
+    .angle_rate_up_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_rate_down_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
+    .frequency = 20U,               // Hz - 20Hz message rate
+
+    .enforce_angle_error = true,
+    .inactive_angle_is_zero = true,
+  };
+  static const FordBluePilotPathLimits FORD_OVERLAY_CURVATURE_RATE_LIMITS_CAN = {
+    .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
+    .angle_deg_to_can = 4000000,    // 1 / (1E-6) meter to can
+    .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
+    .angle_rate_up_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_rate_down_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
+    .frequency = 20U,               // Hz - 20Hz message rate
+
+    .enforce_angle_error = true,
+    .inactive_angle_is_zero = true,
+  };
+  static const FordBluePilotPathLimits FORD_OVERLAY_CURVATURE_RATE_LIMITS_CANFD = {
+    .max_angle = 100,               // 1.0 meter in CAN units (100 * 0.01)
+    .angle_deg_to_can = 1000000,    // 1 / (1E-6) meter to can
+    .max_angle_error = 2,           // 0.02 * FORD_OVERLAY_PATH_OFFSET_LIMITS.angle_deg_to_can
+    .angle_rate_up_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_rate_down_lookup = {
+      .x = {5., 15., 25.},
+      .y = {0.05, 0.025, 0.01}     // Slower rate limits for path offset
+    },
+    .angle_error_min_speed = 5.0,   // m/s - lower speed threshold for path offset
+    .frequency = 20U,               // Hz - 20Hz message rate
+
+    .enforce_angle_error = true,
+    .inactive_angle_is_zero = true,
+  };
+  static const FordBluePilotPathLimits FORD_OVERLAY_STEERING_LIMITS_PINION = FORD_OVERLAY_LIMITS(false, 150);
+
   const LongitudinalLimits FORD_OVERLAY_LONG_LIMITS = {
     // acceleration cmd limits (used for brakes)
     // Signal: AccBrkTot_A_Rq
@@ -587,7 +590,8 @@ static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
     // no separate CAN ID, no RX round-trip.
     if (tx) {
       ford_overlay_bp_angle_mode_engaged = (msg->data[4] & 0x1U) != 0U;
-      ford_overlay_bp_shadow_curvature_raw = (int16_t)((msg->data[5] << 8) | msg->data[6]);
+      const uint16_t shadow_raw = (msg->data[5] << 8) | msg->data[6];
+      ford_overlay_bp_shadow_curvature_raw = (int16_t)shadow_raw;
     }
   }
 
@@ -651,8 +655,10 @@ static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
     // path_angle there only trims and amplifies wound-up curvature, never needs the wide range.
     float path_angle_min_phys = ford_overlay_bp_angle_mode_engaged ? FORD_OVERLAY_DBC_PATH_ANGLE_MIN : FORD_OVERLAY_PATH_ANGLE_MIN;
     float path_angle_max_phys = ford_overlay_bp_angle_mode_engaged ? FORD_OVERLAY_DBC_PATH_ANGLE_MAX : FORD_OVERLAY_PATH_ANGLE_MAX;
-    int path_angle_min_can = (int)(path_angle_min_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can);
-    int path_angle_max_can = (int)(path_angle_max_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can);
+    const float path_angle_min_scaled = path_angle_min_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can;
+    int path_angle_min_can = (int)path_angle_min_scaled;
+    const float path_angle_max_scaled = path_angle_max_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can;
+    int path_angle_max_can = (int)path_angle_max_scaled;
     violation |= (desired_path_angle < path_angle_min_can) || (desired_path_angle > path_angle_max_can);
     // End BluePilot
     if (ford_overlay_test) {
@@ -670,7 +676,7 @@ static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
     // (straight driving or the reset/human-turn frame below), which needs no shadow-curvature check;
     // it's still bounded by the tight path_angle range above and steer_control_enabled's own checks.
     if ((desired_curvature == 0) && ford_overlay_bp_angle_mode_engaged) {
-      int shadow_curvature_can = FORD_OVERLAY_BP_SHADOW_CURVATURE_TO_CAN(ford_overlay_bp_shadow_curvature_raw);
+      int shadow_curvature_can = ford_overlay_shadow_curvature_to_can(ford_overlay_bp_shadow_curvature_raw);
       violation |= ford_overlay_shadow_curvature_error_check(shadow_curvature_can, steer_control_enabled, *ford_overlay_lmc_limits);
     }
 
@@ -762,8 +768,10 @@ static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
     // path_angle there only trims and amplifies wound-up curvature, never needs the wide range.
     float path_angle_min_phys = ford_overlay_bp_angle_mode_engaged ? FORD_OVERLAY_DBC_PATH_ANGLE_MIN : FORD_OVERLAY_PATH_ANGLE_MIN;
     float path_angle_max_phys = ford_overlay_bp_angle_mode_engaged ? FORD_OVERLAY_DBC_PATH_ANGLE_MAX : FORD_OVERLAY_PATH_ANGLE_MAX;
-    int path_angle_min_can = (int)(path_angle_min_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can);
-    int path_angle_max_can = (int)(path_angle_max_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can);
+    const float path_angle_min_scaled = path_angle_min_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can;
+    int path_angle_min_can = (int)path_angle_min_scaled;
+    const float path_angle_max_scaled = path_angle_max_phys * FORD_OVERLAY_PATH_ANGLE_LIMITS.angle_deg_to_can;
+    int path_angle_max_can = (int)path_angle_max_scaled;
     violation |= (desired_path_angle < path_angle_min_can) || (desired_path_angle > path_angle_max_can);
     // End BluePilot
     if (ford_overlay_test) {
@@ -780,7 +788,7 @@ static bool ford_overlay_tx_hook(const CANPacket_t *msg) {
     // (straight driving or the reset/human-turn frame below), which needs no shadow-curvature check;
     // it's still bounded by the tight path_angle range above and steer_control_enabled's own checks.
     if ((desired_curvature == 0) && ford_overlay_bp_angle_mode_engaged) {
-      int shadow_curvature_can = FORD_OVERLAY_BP_SHADOW_CURVATURE_TO_CAN(ford_overlay_bp_shadow_curvature_raw);
+      int shadow_curvature_can = ford_overlay_shadow_curvature_to_can(ford_overlay_bp_shadow_curvature_raw);
       violation |= ford_overlay_shadow_curvature_error_check(shadow_curvature_can, steer_control_enabled, *ford_overlay_lmc2_limits);
     }
 
@@ -867,11 +875,13 @@ static safety_config ford_overlay_init(uint16_t param) {
     {FORD_OVERLAY_Lane_Assist_Data1, 0, 8, .check_relay = true},  \
     {FORD_OVERLAY_IPMA_Data, 0, 8, .check_relay = true},          \
 
+#ifdef ALLOW_DEBUG
   static const CanMsg FORD_OVERLAY_CANFD_LONG_TX_MSGS[] = {
     FORD_OVERLAY_COMMON_TX_MSGS
     {FORD_OVERLAY_ACCDATA, 0, 8, .check_relay = true},
     {FORD_OVERLAY_LateralMotionControl2, 0, 8, .check_relay = true},
   };
+#endif
 
   static const CanMsg FORD_OVERLAY_CANFD_STOCK_TX_MSGS[] = {
     FORD_OVERLAY_COMMON_TX_MSGS
@@ -883,24 +893,21 @@ static safety_config ford_overlay_init(uint16_t param) {
     {FORD_OVERLAY_LateralMotionControl, 0, 8, .check_relay = true},
   };
 
+#ifdef ALLOW_DEBUG
   static const CanMsg FORD_OVERLAY_LONG_TX_MSGS[] = {
     FORD_OVERLAY_COMMON_TX_MSGS
     {FORD_OVERLAY_ACCDATA, 0, 8, .check_relay = true},
     {FORD_OVERLAY_LateralMotionControl, 0, 8, .check_relay = true},
   };
+#endif
 
   const uint16_t FORD_OVERLAY_PARAM_CANFD = 2;
   const bool ford_overlay_canfd = GET_FLAG(param, FORD_OVERLAY_PARAM_CANFD);
 
-  bool ford_overlay_longitudinal = false;
-
 #ifdef ALLOW_DEBUG
   const uint16_t FORD_OVERLAY_PARAM_LONGITUDINAL = 1;
-  ford_overlay_longitudinal = GET_FLAG(param, FORD_OVERLAY_PARAM_LONGITUDINAL);
+  const bool ford_overlay_longitudinal = GET_FLAG(param, FORD_OVERLAY_PARAM_LONGITUDINAL);
 #endif
-
-  // Longitudinal is the default for CAN, and optional for CAN FD w/ ALLOW_DEBUG
-  // ford_overlay_longitudinal = !ford_overlay_canfd || ford_overlay_longitudinal;
 
   // BluePilot: steering-angle curvature measurement (bad-yaw-sensor workaround), read from
   // the sunnypilot SP safety param (current_safety_param_sp, delivered via USB 0xdf before
@@ -915,15 +922,23 @@ static safety_config ford_overlay_init(uint16_t param) {
     pinion_enabled = false;
   }
   ford_overlay_bp_pinion_curvature = pinion_enabled;
-  ford_overlay_bp_pinion_params = pinion_enabled ? &ford_overlay_pinion_geometry[pinion_geometry_index] : &ford_overlay_pinion_geometry[0];
+  ford_overlay_bp_pinion_params = ford_overlay_get_pinion_params(pinion_enabled ? pinion_geometry_index : 0U);
 
   safety_config ret;
   if (ford_overlay_canfd) {
-    ret = ford_overlay_longitudinal ? BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_CANFD_LONG_TX_MSGS) : \
-                              BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_CANFD_STOCK_TX_MSGS);
+    ret = BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_CANFD_STOCK_TX_MSGS);
+#ifdef ALLOW_DEBUG
+    if (ford_overlay_longitudinal) {
+      ret = BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_CANFD_LONG_TX_MSGS);
+    }
+#endif
   } else {
-    ret = ford_overlay_longitudinal ? BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_LONG_TX_MSGS) : \
-                              BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_STOCK_TX_MSGS);
+    ret = BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_STOCK_TX_MSGS);
+#ifdef ALLOW_DEBUG
+    if (ford_overlay_longitudinal) {
+      ret = BUILD_SAFETY_CFG(ford_overlay_rx_checks, FORD_OVERLAY_LONG_TX_MSGS);
+    }
+#endif
   }
   if (ford_overlay_bp_pinion_curvature) {
     // Enforce 100Hz/counter/QF on the pinion message only when it is actually consumed.
