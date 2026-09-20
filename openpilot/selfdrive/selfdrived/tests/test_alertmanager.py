@@ -1,3 +1,4 @@
+import copy
 import random
 
 from openpilot.common.test import OpenpilotTestCase
@@ -19,6 +20,9 @@ class TestAlertManager(OpenpilotTestCase):
         event = random.choice([e for e in EVENTS.values() if len(e)])
         alert = random.choice(list(event.values()))
 
+      # Exercise arbitrary lifetimes without changing the shared production
+      # definitions used by subsequent tests in the same process.
+      alert = copy.copy(alert)
       alert.duration = duration
 
       # check two cases:
