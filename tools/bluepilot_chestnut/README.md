@@ -216,6 +216,22 @@ tests cover both display sizes, turn directions, reversals, data loss and invali
 normalization. Accurate physical saturation would require validated vehicle
 feedback and controller telemetry, including limits on the auxiliary inputs.
 
+Ford limit-status feedback is documented in the
+[upstream DBC](https://github.com/commaai/opendbc/blob/master/opendbc/dbc/ford_lincoln_base_pt.dbc):
+`Lane_Assist_Data3_FD1.LatCtlLim_D_Stat` encodes `LimitNotReached` (0),
+`LimitClose` (1), `LimitReached` (2), and `LimitWithDriverActive` (3).
+These are reported states, not a continuous percentage of remaining capacity.
+The CAN FD parser already receives the enclosing message, but the arc does not
+consume this field. The angle strategy reads `CS.lat_ctl_lim_stat` with a zero
+fallback, while neither this branch nor the pinned BP donor assigns that attribute
+in production Python. Therefore the current fallback cannot establish that the
+vehicle is reporting zero, and the inherited comment that the signal does not fire
+in angle mode is not independent evidence of its behavior on this Mach-E.
+Recorded CAN and active-mode correlation are still needed. Raw recordings remained
+on the unreachable comma during this check; earlier local diagnostic summaries
+did not retain this signal. No limit-feedback wiring or control behavior was
+changed by this documentation review.
+
 Additional schema checks found the older display still using `liveCalibration`
 instead of `extrinsicsCalibration`, and diagnostic rows using removed brake and
 longitudinal proportional-gain fields. Those display consumers are corrected and
