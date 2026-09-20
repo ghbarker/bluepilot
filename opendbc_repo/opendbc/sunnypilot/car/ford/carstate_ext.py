@@ -13,6 +13,7 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.can.parser import CANParser
 from opendbc.car.ford.values import CAR, FordFlags
 from opendbc.sunnypilot.car.ford.values_ext import BUTTONS
+from opendbc.sunnypilot.car.ford.steering_limit_feedback import fill_steering_limit_feedback
 from openpilot.common.swaglog import cloudlog
 
 
@@ -316,6 +317,7 @@ class CarStateExt:
     """
     dat = messaging.new_message("carStateBP")
     dat.valid = True
+    fill_steering_limit_feedback(dat.carStateBP.fordSteeringLimit, cp, self.CP.flags)
 
     hybrid_drive = dat.carStateBP.hybridDrive
     hybrid_battery = dat.carStateBP.hybridBattery

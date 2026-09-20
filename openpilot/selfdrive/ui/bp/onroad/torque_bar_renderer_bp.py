@@ -162,13 +162,13 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     try:
       self._update_torque_filter_bp()
     except (KeyError, AttributeError):
-      pass
+      self._clear_torque_bp()
 
     self._update_alpha()
 
   def _update_alpha(self):
     """Update visibility alpha based on engagement status."""
-    self._alpha_filter.update(ui_state.status not in (UIStatus.DISENGAGED, UIStatus.LONG_ONLY))
+    self._alpha_filter.update(self._bp_torque_valid and ui_state.status not in (UIStatus.DISENGAGED, UIStatus.LONG_ONLY))
     bp_ui_log.state("TorqueBar", "alpha", round(self._alpha_filter.x, 2))
     bp_ui_log.state("TorqueBar", "ui_status", ui_state.status.name)
 
@@ -179,7 +179,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         rect: The UI rect to position the arc within.
         gauge_height_offset: Pixels to subtract from rect height to push the arc above gauges.
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
 
     # Shrink effective rect to push arc above the gauge area
@@ -260,6 +260,10 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     else:
       start_color = end_color = _accent_or(rl.Color(255, 255, 255, int(255 * 0.35 * alpha)), int(255 * 0.35 * alpha))
 
+    if is_active:
+      start_color, end_color = self._torque_colors(start_color, end_color)
+    self._render_limit_label_bp(cx, effective_rect.y + effective_rect.height - 17 * self._scale,
+                                alpha, 12 * self._scale, effective_rect.width - 20)
     gradient = Gradient(
       start=(start_grad_pt, 0),
       end=(end_grad_pt, 0),
@@ -283,7 +287,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     Args:
         strip_rect: Rectangle allocated for the strip (full inner width, STRIP_HEIGHT tall).
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
 
     torque = self._torque_filter.x
@@ -319,6 +323,8 @@ class TorqueBarRendererBP(TorqueBarStateBP):
       else:
         fill_color = rl.Color(255, 255, 255, int(255 * 0.35 * alpha))
 
+      if is_active:
+        fill_color, _ = self._torque_colors(fill_color, fill_color)
       # Scissor + overshoot for flat inner edge, rounded outer edge (same as PowerFlowGauge)
       overshoot = strip_rect.height
       if torque < 0:
@@ -346,6 +352,8 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         rl.draw_rectangle_rounded(rounded_rect, roundness, STRIP_CORNER_SEGMENTS, fill_color)
       rl.end_scissor_mode()
 
+    self._render_limit_label_bp(strip_rect.x + strip_rect.width / 2, strip_rect.y - 24,
+                                alpha, 20, strip_rect.width)
     # --- Center tick ---
     center_x = strip_rect.x + strip_rect.width / 2
     rl.draw_line_ex(
@@ -376,7 +384,7 @@ class TorqueBarRendererBP(TorqueBarStateBP):
     strip spans battery+powerflow to shift center left by one tick (e.g. top_angle - 1.5°).
     scale: 0.75 for small arched gauge, 1.0 for large.
     """
-    if not ui_state.torque_bar:
+    if not ui_state.torque_bar or not self._bp_torque_valid:
       return
     torque = self._torque_filter.x
     alpha = self._alpha_filter.x
@@ -406,6 +414,8 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         )
       else:
         fill_color = rl.Color(255, 255, 255, int(255 * 0.35 * alpha))
+      if is_active:
+        fill_color, _ = self._torque_colors(fill_color, fill_color)
       if torque < 0:
         bar_start_angle = center + (start_angle - center) * abs_torque
         bar_end_angle = center
@@ -417,3 +427,5 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         bar_start_angle, bar_end_angle,
       )
       draw_polygon(rect, fill_pts, color=fill_color)
+    self._render_limit_label_bp(cx, cy - strip_mid_r - strip_thickness / 2 - 22 * scale,
+                                alpha, 18 * scale, rect.width)

@@ -148,6 +148,11 @@ DEFAULT_MAX_LAT_ACCEL = 3.0  # m/s^2
 
 
 class TorqueBar(Widget):
+  # BluePilot: allow the BP subclass to color from reported Ford feedback.
+  def _torque_colors(self, start_color, end_color):
+    return start_color, end_color
+  # End BluePilot
+
   def __init__(self, demo: bool = False, scale: float = 1.0, always: bool = False):
     super().__init__()
     self._demo = demo
@@ -246,6 +251,9 @@ class TorqueBar(Widget):
       max(0, abs(self._torque_filter.x) - 0.75) * 4,
     )
 
+    # BluePilot: display-only hook; the base implementation preserves upstream colors.
+    start_color, end_color = self._torque_colors(start_color, end_color)
+    # End BluePilot
     if ui_state.status not in (UIStatus.ENGAGED, UIStatus.LAT_ONLY) and not self._demo:
       start_color = end_color = rl.Color(255, 255, 255, int(255 * 0.35 * self._torque_line_alpha_filter.x))
 

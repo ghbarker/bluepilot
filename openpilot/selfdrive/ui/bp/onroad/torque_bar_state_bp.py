@@ -1,6 +1,9 @@
+import math
+import time
 import numpy as np
 from opendbc.car import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.bp.onroad.steering_limit_state import SteeringLimitDisplay, ford_limit_display
 
 
 DEFAULT_MAX_LAT_ACCEL_BP = 3.0  # m/s^2
@@ -16,28 +19,83 @@ class TorqueBarStateBP:
 
   roll_compensation_max_weight = ROLL_COMPENSATION_MAX_WEIGHT
   default_max_lateral_accel = DEFAULT_MAX_LAT_ACCEL_BP
+  _bp_torque_valid = False
+  _bp_ford_arc = False
+  _bp_limit_display = SteeringLimitDisplay(label="")
+
+  def _clear_torque_bp(self) -> None:
+    self._bp_torque_valid = False
+    self._torque_filter.x = 0.0
+    self._bp_limit_display = SteeringLimitDisplay(label="")
 
   def _update_torque_filter_bp(self) -> None:
-    if ui_state.sm['controlsState'].lateralControlState.which() == 'angleState':
-      controls_state = ui_state.sm['controlsState']
-      car_state = ui_state.sm['carState']
-      live_parameters = ui_state.sm['vehicleParameters']
-      car_control = ui_state.sm['carControl']
+    sm = ui_state.sm
+    self._bp_ford_arc = ui_state.CP is not None and ui_state.CP.brand == 'ford'
+    self._bp_limit_display = SteeringLimitDisplay(label="")
+    angle_control = sm['controlsState'].lateralControlState.which() in ('angleState', 'curvatureState')
+    services = ('controlsState', 'carState', 'carControl', 'vehicleParameters' if angle_control else 'carOutput')
+    if not all(sm.valid[s] and sm.alive[s] for s in services):
+      self._clear_torque_bp()
+      return
 
-      actual_lateral_accel = controls_state.curvature * car_state.vEgo ** 2
-      desired_lateral_accel = controls_state.desiredCurvature * car_state.vEgo ** 2
-      accel_diff = (desired_lateral_accel - actual_lateral_accel)
-
-      roll_compensation = live_parameters.roll * ACCELERATION_DUE_TO_GRAVITY * self._roll_compensation_weight_bp(car_state.vEgo)
-      lateral_acceleration = actual_lateral_accel - roll_compensation
-      max_lateral_acceleration = ui_state.CP.maxLateralAccel if ui_state.CP else self.default_max_lateral_accel
-
-      if not car_control.latActive:
-        self._torque_filter.update(0.0)
-      else:
-        self._torque_filter.update(np.clip((lateral_acceleration + accel_diff) / max_lateral_acceleration, -1, 1))
+    if not sm['carControl'].latActive:
+      target = 0.0
+    elif angle_control:
+      speed = sm['carState'].vEgo
+      demand = sm['controlsState'].desiredCurvature * speed ** 2
+      roll = sm['vehicleParameters'].roll
+      maximum = ui_state.CP.maxLateralAccel if ui_state.CP else self.default_max_lateral_accel
+      if not all(math.isfinite(v) for v in (speed, demand, roll, maximum)) or maximum <= 0.:
+        self._clear_torque_bp()
+        return
+      # This is an estimated load, not measured EPS torque or remaining firmware
+      # authority. Bank compensation may reduce effort, but must not point the
+      # directional arc opposite the requested turn (or invent a turn at zero).
+      compensation = roll * ACCELERATION_DUE_TO_GRAVITY * self._roll_compensation_weight_bp(speed)
+      load = max(0., abs(demand) - math.copysign(1., demand) * compensation)
+      target = math.copysign(load / maximum, demand) if demand != 0. else 0.0
     else:
-      self._torque_filter.update(-ui_state.sm['carOutput'].actuatorsOutput.torque)
+      target = -sm['carOutput'].actuatorsOutput.torque
+
+    if not math.isfinite(target):
+      self._clear_torque_bp()
+      return
+    target = float(np.clip(target, -1., 1.))
+    # Smoothing must not keep displaying the old side after a reversal or release.
+    if target == 0. or target * self._torque_filter.x < 0.:
+      self._torque_filter.x = 0.0
+    self._torque_filter.update(target)
+    self._bp_torque_valid = True
+    if self._bp_ford_arc:
+      active = sm['carControl'].latActive
+      self._bp_limit_display = SteeringLimitDisplay() if active else SteeringLimitDisplay(label="")
+      if sm.valid.get('carStateBP', False) and sm.alive.get('carStateBP', False):
+        self._bp_limit_display = ford_limit_display(
+          sm['carStateBP'].fordSteeringLimit, time.monotonic_ns(), active, True)
+
+  def _torque_colors(self, start_color, end_color):
+    if self._bp_ford_arc:
+      import pyray as rl
+      # Never derive a Ford limit color from the guessed maxLateralAccel scale,
+      # or a theme's accent color. The demand-length filter does not delay alerts.
+      r, g, b = self._bp_limit_display.rgb
+      return rl.Color(r, g, b, start_color.a), rl.Color(r, g, b, end_color.a)
+    return start_color, end_color
+
+  def _render_limit_label_bp(self, cx, y, alpha, font_size, max_width):
+    if not self._bp_ford_arc or not self._bp_torque_valid or not self._bp_limit_display.label or alpha < .01:
+      return
+    import pyray as rl
+    from openpilot.system.ui.lib.application import gui_app, FontWeight
+    from openpilot.system.ui.lib.text_measure import measure_text_cached
+    font = gui_app.font(FontWeight.MEDIUM)
+    label = self._bp_limit_display.label
+    width = measure_text_cached(font, label, font_size).x
+    font_size *= min(1., max_width / max(width, 1.))
+    width = measure_text_cached(font, label, font_size).x
+    r, g, b = self._bp_limit_display.rgb
+    rl.draw_text_ex(font, label, rl.Vector2(cx - width / 2 + 1, y + 1), font_size, 0, rl.Color(0, 0, 0, int(220 * alpha)))
+    rl.draw_text_ex(font, label, rl.Vector2(cx - width / 2, y), font_size, 0, rl.Color(r, g, b, int(255 * alpha)))
 
   def _roll_compensation_weight_bp(self, v_ego: float) -> float:
     # Roll is less accurate near standstill, so reduce its effect at low speed.
