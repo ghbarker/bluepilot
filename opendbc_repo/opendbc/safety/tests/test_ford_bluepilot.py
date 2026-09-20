@@ -316,6 +316,44 @@ class TestFordSafetyBase(common.CarSafetyTest):
       self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, 0.1, 0, 0)))
     self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0.005, 0, 0)))
 
+  def test_angle_reengagement_while_turning(self):
+    # Angle mode always sends zero wire curvature, even when measured curvature
+    # is nonzero. Disengagement must not seed its command history from the turn.
+    for speed in (15., 25., 35.):
+      for sign in (-1, 1):
+        for lateral_only in (False, True):
+          with self.subTest(speed=speed, sign=sign, lateral_only=lateral_only):
+            self.setUp()
+            measured = sign * 1.8 / speed ** 2
+            self._reset_curvature_measurement(measured, speed)
+            self.safety.set_controls_allowed(False)
+            self.safety.set_controls_allowed_lateral(False)
+            self.assertTrue(self._tx(self._lka_bp_status_msg(True, measured)))
+            self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+            self.assertTrue(self._tx(self._lat_ctl_msg(False, 0, 0, 0, 0)))
+
+            self.safety.set_controls_allowed(not lateral_only)
+            self.safety.set_controls_allowed_lateral(lateral_only)
+            # No extra inactive frame after controls become allowed: the first
+            # valid active frame and sustained steering must both pass.
+            for _ in range(80):
+              self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+
+  def test_angle_recovers_after_rejected_curvature_while_turning(self):
+    for sign in (-1, 1):
+      with self.subTest(sign=sign):
+        self.setUp()
+        measured = sign * 0.003
+        self._reset_curvature_measurement(measured, 25.)
+        self.safety.set_controls_allowed(True)
+        self.assertTrue(self._tx(self._lka_bp_status_msg(True, measured)))
+        self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+        # An invalid command must stay blocked, without making subsequent
+        # valid zero-curvature angle commands depend on measured curvature.
+        self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, sign * 0.02, 0)))
+        for _ in range(5):
+          self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+
   def test_reset_frame_cannot_bypass_curvature_limit(self):
     self._reset_curvature_measurement(0, 25.)
     self.safety.set_controls_allowed(True)
