@@ -221,8 +221,9 @@ Ford limit-status feedback is documented in the
 `Lane_Assist_Data3_FD1.LatCtlLim_D_Stat` encodes `LimitNotReached` (0),
 `LimitClose` (1), `LimitReached` (2), and `LimitWithDriverActive` (3).
 These are reported states, not a continuous percentage of remaining capacity.
-The CAN FD parser already receives the enclosing message, but the arc does not
-consume this field. The angle strategy reads `CS.lat_ctl_lim_stat` with a zero
+Before the display correction below, the CAN FD parser already received the
+enclosing message, but the arc did not consume this field. The angle strategy
+still reads `CS.lat_ctl_lim_stat` with a zero
 fallback, while neither this branch nor the pinned BP donor assigns that attribute
 in production Python. Therefore the current fallback cannot establish that the
 vehicle is reporting zero, and the inherited comment that the signal does not fire
@@ -230,7 +231,31 @@ in angle mode is not independent evidence of its behavior on this Mach-E.
 Recorded CAN and active-mode correlation are still needed. Raw recordings remained
 on the unreachable comma during this check; earlier local diagnostic summaries
 did not retain this signal. No limit-feedback wiring or control behavior was
-changed by this documentation review.
+changed by that documentation review.
+
+The subsequent display correction publishes the received Ford CAN FD limit state
+and its original CAN timestamp in `carStateBP.fordSteeringLimit`. It deliberately
+does not assign the controller's `CS.lat_ctl_lim_stat` attribute or change steering
+commands, firmware limits, or takeover events. The display rejects missing,
+invalid, future-dated, and older-than-150-ms feedback, and only interprets it while
+lateral control is active and the PSCM reports continuous control in progress.
+Republishing cached CAN values cannot refresh their age.
+
+On Ford, amber now means the PSCM reports `LimitClose`; red means `LimitReached`
+or `LimitWithDriverActive`. A visible label distinguishes these conditions.
+Zero/missing/unsupported feedback displays `DEMAND / CAPACITY UNKNOWN` in neutral
+colors. The estimated demand length no longer selects Ford limit colors, including
+with a colored theme. This is a reported-limit indicator, **not a calibrated
+remaining-capacity gauge**. Arc length still represents estimated demand.
+
+There is documented capacity information: upstream `car/ford/values.py` describes
+an approximate 2.0 m/s^2 EPS curvature limit and speed-dependent curvature rate.
+That does not establish a combined-input saturation scale for BP path-angle mode.
+The BP angle controller references `bluepilot/agent_info/20_FORD_PSCM_KNOWLEDGE_PACK.md`,
+but that document was absent from the checked local history and current upstream
+BP tree. Vehicle/mode validation and the applicable calibration evidence remain
+necessary before claiming continuous physical headroom. These display changes
+have not been installed or validated on the user's comma.
 
 Additional schema checks found the older display still using `liveCalibration`
 instead of `extrinsicsCalibration`, and diagnostic rows using removed brake and

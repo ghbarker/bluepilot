@@ -21,3 +21,6 @@ class TorqueBarBP(TorqueBarStateBP, TorqueBar):
   def _render(self, rect):
     if self._demo or self._bp_torque_valid:
       super()._render(rect)
+      if not self._demo:
+        self._render_limit_label_bp(rect.x + rect.width / 2 + 8, rect.y + rect.height - 17 * self._scale,
+                                    self._torque_line_alpha_filter.x, 12 * self._scale, rect.width - 20)

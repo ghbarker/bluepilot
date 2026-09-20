@@ -36,8 +36,9 @@ class VisualsLayout(Widget):
       ),
       "TorqueBar": (
         lambda: tr("Steering Arc"),
-        tr("Shows steering direction and estimated steering effort. Steering warnings indicate tracking limits " +
-           "and can appear before the arc is full."),
+        tr("Arc length shows steering direction and estimated demand, not remaining capacity. " +
+           "On Ford, amber means the steering system reports near its limit and red means it reports a limit. " +
+           "Capacity is shown as unknown otherwise. Always respond to steering takeover warnings."),
         None,
       ),
       "RainbowMode": (

@@ -12,6 +12,7 @@ def test_steering_arc_direction_and_data_loss(tmp_path):
 
 def render_check(params_dir):
   import math
+  import time
   from unittest.mock import patch
   from openpilot.common.params import Params
 
@@ -29,7 +30,7 @@ def render_check(params_dir):
     from openpilot.system.ui.lib.application import gui_app
 
     class Messages(dict):
-      valid = dict.fromkeys(('controlsState', 'carState', 'carControl', 'vehicleParameters', 'carOutput'), True)
+      valid = dict.fromkeys(('controlsState', 'carState', 'carControl', 'vehicleParameters', 'carOutput', 'carStateBP'), True)
       alive = valid.copy()
 
     cs = log.ControlsState.new_message()
@@ -37,6 +38,7 @@ def render_check(params_dir):
     cc = structs.CarControl.new_message(latActive=True)
     params = log.VehicleParameters.new_message(roll=0.)
     output = messaging.new_message('carOutput').carOutput
+    ford = messaging.new_message('carStateBP').carStateBP
     cp = structs.CarParams.new_message(brand='ford', maxLateralAccel=1.5)
     sm = Messages()
     gui_app.init_window('Steering arc regression test')
@@ -52,7 +54,7 @@ def render_check(params_dir):
             params.roll = roll
             cc.latActive = active
             sm.update(controlsState=cs.as_reader(), carState=car.as_reader(), carControl=cc.as_reader(),
-                      vehicleParameters=params.as_reader(), carOutput=output.as_reader())
+                      vehicleParameters=params.as_reader(), carOutput=output.as_reader(), carStateBP=ford.as_reader())
             current_widget._update_torque_filter_bp()
             return current_widget._torque_filter.x
 
@@ -91,13 +93,56 @@ def render_check(params_dir):
             value = update(.75, kind='pidState')
           assert abs(value - .4) < .001
           assert update(.75) > 0. and widget._bp_torque_valid
-          if isinstance(widget, TorqueBarRendererBP):
-            widget.update()
-          rl.begin_drawing()
-          try:
-            widget.render(rect)
-          finally:
-            rl.end_drawing()
+          # Reported limit colors are immediate and independent of demand magnitude,
+          # turn direction, lateral-control-state variant, smoothing, or accent colors.
+          feedback = ford.fordSteeringLimit
+          feedback.dataAvailable = True
+          feedback.controlStatus = 2
+          for kind in ('angleState', 'curvatureState'):
+            for sign in (-1., 1.):
+              for status, expected in ((0, (230, 230, 230)), (1, (255, 200, 0)), (2, (255, 65, 65)), (3, (255, 65, 65))):
+                feedback.status = status
+                feedback.sourceMonoTime = time.monotonic_ns()
+                update(sign * .05, kind=kind)
+                color, _ = widget._torque_colors(rl.Color(0, 0, 255, 255), rl.Color(0, 255, 0, 255))
+                assert (color.r, color.g, color.b) == expected
+                assert widget._torque_filter.x * sign > 0
+          # Losing only the feedback leaves direction/demand visible, with unknown capacity.
+          sm.alive['carStateBP'] = False
+          update(10.)
+          assert widget._bp_torque_valid and widget._bp_limit_display.label == 'DEMAND / CAPACITY UNKNOWN'
+          color, _ = widget._torque_colors(rl.Color(255, 0, 0, 255), rl.Color(255, 0, 0, 255))
+          assert (color.r, color.g, color.b) == (230, 230, 230)
+          sm.alive['carStateBP'] = True
+          feedback.sourceMonoTime = time.monotonic_ns() - 200_000_000
+          update(.75)
+          assert widget._bp_limit_display.label == 'DEMAND / CAPACITY UNKNOWN'
+          assert update(.75, active=False) == 0 and widget._bp_limit_display.label == ''
+          update(.75)
+          for status in (0, 1, 2, 3):
+            feedback.status = status
+            feedback.sourceMonoTime = time.monotonic_ns()
+            for _ in range(80):
+              update(.75)
+              if isinstance(widget, TorqueBarRendererBP):
+                widget.update()
+              else:
+                widget._torque_line_alpha_filter.update(1.)
+            rl.begin_drawing()
+            try:
+              rl.clear_background(rl.BLACK)
+              widget.render(rect)
+              if isinstance(widget, TorqueBarRendererBP):
+                widget.render_strip(rl.Rectangle(30, 150, 300, 11))
+                widget.render_strip_arched(rect, 250, 420, -90, -150, -30, 150)
+            finally:
+              rl.end_drawing()
+            if screenshot_dir := os.environ.get('BP_ARC_SCREENSHOT_DIR'):
+              screenshot = rl.load_image_from_screen()
+              try:
+                assert rl.export_image(screenshot, str(Path(screenshot_dir) / f'{cls.__name__}-{status}.png'))
+              finally:
+                rl.unload_image(screenshot)
     finally:
       gui_app.close()
 

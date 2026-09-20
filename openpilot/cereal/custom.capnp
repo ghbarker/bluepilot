@@ -578,6 +578,15 @@ struct CarStateBP @0xb057204d7deadf3f {
   hybridDrive @0 :HybridDrive;
   hybridBattery @1 :HybridBattery;
   brakeLightStatus @2 :BrakeLightStatus;
+  fordSteeringLimit @3 :FordSteeringLimit;
+
+  # Display/logging only. Default/missing data must never mean spare capacity.
+  struct FordSteeringLimit {
+    dataAvailable @0 :Bool;
+    status @1 :UInt8;  # LatCtlLim_D_Stat: 0 not reached, 1 close, 2 reached, 3 driver active
+    controlStatus @2 :UInt8;  # LatCtlSte_D_Stat: 2 = continuous lateral control in progress
+    sourceMonoTime @3 :UInt64;  # timestamp of the actual received CAN frame, not republishing time
+  }
 
   struct HybridDrive {
     dataAvailable @0 :Bool;
