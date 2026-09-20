@@ -6,7 +6,7 @@ failures have been corrected; vehicle qualification remains blocked. Do not trea
 installation or passing unit tests as driving qualification.
 See the [current review findings](tools/bluepilot_chestnut/README.md#owner-review-2026-09-19)
 before using or distributing this branch. The upstream description below does not
-establish safety-rule compliance for SP-BPDEV.
+establish safety-rule compliance for this migration draft.
 
 ![](https://user-images.githubusercontent.com/47793918/233812617-beab2e71-57b9-479e-8bff-c3931347ca40.png)
 

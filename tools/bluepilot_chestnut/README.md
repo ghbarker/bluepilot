@@ -1,6 +1,6 @@
 # BluePilot Ford overlay on sunnypilot Chestnut
 
-This branch ports the pinned BluePilot `bp-dev` Ford controls, vehicle support,
+This migration branch ports the pinned BluePilot `bp-dev` Ford controls, vehicle support,
 settings, dashboard, sounds, telemetry, and Portal onto the packaged sunnypilot
 `staging-chestnut` base. It is a source-build candidate. Target-device installation,
 Panda flashing, Chestnut model loading, and driving have not been qualified.
@@ -197,30 +197,21 @@ resolve the auxiliary-actuator qualification gap. The unchanged shared
 `safety/lateral.h` and driver-monitoring source were also checked. Preserving
 those files does not prove that all extensions respect their intended safeguards.
 
-The Ford angle controller's warning logic matches the BP-DEV donor, and the
-steering-required event block matches the pinned upstream base. The warning
-requires sustained steering tracking error or curvature clipping, more than 20%
-undershoot, desired lateral acceleration above 1 m/s^2 and no recent driver
-steering input. Completing a turn later does not establish that an earlier
-warning was spurious. No warning threshold or actuator limit was changed by the
-display corrections. A recording of the reported warning is still needed.
+The warning trigger and presentation remain inherited in this migration PR.
+Captured Mach-E logs show 30 consecutive rejected steering commands over roughly
+1.5 seconds, followed by temporary steering unavailability. Offline safety replay
+reproduced that rejection sequence. The host's intended-curvature measurement
+disagrees with the safety board's independently calculated envelope. This remains
+unresolved and is a release blocker; passing tests does not fix or qualify it.
+Private recordings are not included in this repository.
 
-The arc estimates steering effort against `CarParams.maxLateralAccel`; for the
-Mach-E the inherited table uses a guessed 1.5 m/s^2. It is not measured EPS torque,
-remaining steering range or a common scale for all firmware limits. The review
-reproduced a wrong-direction display when road-bank compensation exceeded a small
-turn demand, and stale direction after a reversal. Corrections constrain the
-display to the requested direction, clear invalid/dead/non-finite readings,
-handle curvature-state messages, and explain the estimate in settings. Rendering
-tests cover both display sizes, turn directions, reversals, data loss and invalid
-normalization. Accurate physical saturation would require validated vehicle
-feedback and controller telemetry, including limits on the auxiliary inputs.
+The arc's direction/freshness corrections, Ford-reported limit display, and
+recovery-aware warning presentation are reserved for the follow-up branch. They
+are absent from this migration PR. The inherited arc is an estimate of demand,
+not established remaining physical steering capacity.
 
-Additional schema checks found the older display still using `liveCalibration`
-instead of `extrinsicsCalibration`, and diagnostic rows using removed brake and
-longitudinal proportional-gain fields. Those display consumers are corrected and
-tested using current message types. These are source-level corrections; the
-owner-review changes have not been installed or verified on a vehicle.
+The current-schema repairs for lead displays, calibration-service access, and
+removed debug fields are included here because they prevent migration crashes.
 
 ### Device startup corrections, 2026-09-19
 
