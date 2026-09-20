@@ -316,6 +316,86 @@ class TestFordSafetyBase(common.CarSafetyTest):
       self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, 0.1, 0, 0)))
     self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0.005, 0, 0)))
 
+  def test_rejected_feedforward_cannot_ratchet_curvature(self):
+    # Each curvature increment fits the current jerk limit, but the entire
+    # message is rejected by the separate feedforward envelope. Those commands
+    # never reach the EPS and must not create a new curvature rate-limit origin.
+    for sign in (-1, 1):
+      for lateral_only in (False, True):
+        for offset, angle in ((1.01, 0), (0, 0.251)):
+          with self.subTest(sign=sign, lateral_only=lateral_only, offset=offset, angle=angle):
+            self.setUp()
+            self._reset_curvature_measurement(0, 25.)
+            self.safety.set_controls_allowed(not lateral_only)
+            self.safety.set_controls_allowed_lateral(lateral_only)
+            for curvature_can in (15, 30, 45, 60, 75):
+              self.assertFalse(self._tx(self._lat_ctl_msg(True, offset, angle, sign * curvature_can / self.DEG_TO_CAN, 0)))
+            self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, 0, sign * 90 / self.DEG_TO_CAN, 0)))
+
+  def test_rejected_feedforward_preserves_curvature_recovery(self):
+    # A donor-only rejection must also leave a valid return toward zero
+    # available from the last accepted command (15 CAN units at 25 m/s).
+    for sign in (-1, 1):
+      for lateral_only in (False, True):
+        for offset, angle in ((1.01, 0), (0, 0.251)):
+          with self.subTest(sign=sign, lateral_only=lateral_only, offset=offset, angle=angle):
+            self.setUp()
+            self._reset_curvature_measurement(0, 25.)
+            self.safety.set_controls_allowed(not lateral_only)
+            self.safety.set_controls_allowed_lateral(lateral_only)
+            self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0, sign * 15 / self.DEG_TO_CAN, 0)))
+            self.assertFalse(self._tx(self._lat_ctl_msg(True, offset, angle, sign * 30 / self.DEG_TO_CAN, 0)))
+            self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0, 0, 0)))
+
+  def test_rejected_shadow_cap_preserves_curvature_history(self):
+    # The angle shadow acceleration bound is another Ford-local check outside
+    # the shared curvature checker. Its rejection cannot silently seed zero.
+    for sign in (-1, 1):
+      for lateral_only in (False, True):
+        with self.subTest(sign=sign, lateral_only=lateral_only):
+          self.setUp()
+          self._reset_curvature_measurement(0, 25.)
+          self.safety.set_controls_allowed(not lateral_only)
+          self.safety.set_controls_allowed_lateral(lateral_only)
+          self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0, sign * 15 / self.DEG_TO_CAN, 0)))
+          self._reset_curvature_measurement(sign * 0.008, 25.)
+          self.assertTrue(self._tx(self._lka_bp_status_msg(True, sign * 0.008)))
+          self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+          self.assertEqual(self.safety.get_desired_curvature_last(), sign * 15)
+          self._reset_curvature_measurement(0, 25.)
+          self.assertTrue(self._tx(self._lka_bp_status_msg(False, 0)))
+          self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, 0, -sign * 15 / self.DEG_TO_CAN, 0)))
+
+  def test_rejected_feedforward_still_counts_toward_tx_rate_limit(self):
+    # Roll back command history, not the shared traffic counters. Flooding
+    # rejected messages must not create an allowance for another active frame.
+    self._reset_curvature_measurement(0, 25.)
+    self.safety.set_controls_allowed(True)
+    self.safety.set_timer(0)
+    for _ in range(20):
+      self.assertFalse(self._tx(self._lat_ctl_msg(True, 1.01, 0, 1 / self.DEG_TO_CAN, 0, increment_timer=False)))
+    self.assertFalse(self._tx(self._lat_ctl_msg(True, 0, 0, 1 / self.DEG_TO_CAN, 0, increment_timer=False)))
+
+  def test_rejected_inactive_feedforward_preserves_disengagement_reset(self):
+    # The shared checker also resets when controls are disallowed, even if the
+    # zero-curvature inactive field itself is valid. Do not undo that reset.
+    for sign in (-1, 1):
+      for lateral_only in (False, True):
+        with self.subTest(sign=sign, lateral_only=lateral_only):
+          self.setUp()
+          self._reset_curvature_measurement(0, 25.)
+          self.safety.set_controls_allowed(True)
+          for curvature_can in (15, 30, 45):
+            self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, 0, sign * curvature_can / self.DEG_TO_CAN, 0)))
+          self.safety.set_controls_allowed(False)
+          self.safety.set_controls_allowed_lateral(False)
+          self.assertFalse(self._tx(self._lat_ctl_msg(False, 1.01, 0, 0, 0)))
+          self.assertEqual(self.safety.get_desired_curvature_last(), 0)
+          self.safety.set_controls_allowed(not lateral_only)
+          self.safety.set_controls_allowed_lateral(lateral_only)
+          self.assertTrue(self._tx(self._lka_bp_status_msg(True, 0)))
+          self.assertTrue(self._tx(self._lat_ctl_msg(True, 0, sign * 0.005, 0, 0)))
+
   def test_angle_reengagement_while_turning(self):
     # Angle mode always sends zero wire curvature, even when measured curvature
     # is nonzero. Disengagement must not seed its command history from the turn.

@@ -182,6 +182,7 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
   // BluePilot: combine the donor actuator envelope with current upstream checks.
   // Both must accept. The donor cannot clear the current check's rejection.
   if (ford_bluepilot_enabled) {
+    const int curvature_last = curvature_state.desired_last;
     const int path_angle_last = ford_overlay_desired_path_angle_last;
     const int path_offset_last = ford_overlay_desired_path_offset_last;
     const int curvature_rate_last = ford_overlay_desired_curvature_rate_last;
@@ -206,7 +207,8 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
         // curvature can keep rejecting angle mode's zero-curvature field.
         .inactive_curvature_is_zero = true,
       };
-      bool violation = steer_curvature_cmd_checks(desired, 0, enabled, limits);
+      const bool curvature_violation = steer_curvature_cmd_checks(desired, 0, enabled, limits);
+      bool violation = curvature_violation;
       if (angle_mode && enabled) {
         // The extra actuator must not evade the current lateral-acceleration cap.
         const float speed = SAFETY_MAX((vehicle_speed.min / VEHICLE_SPEED_FACTOR) - 1.0, 1.0);
@@ -214,6 +216,12 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
         const int cap = (max_accel / (speed * speed) * limits.curvature_to_can) + 1.;
         const int shadow = FORD_OVERLAY_BP_SHADOW_CURVATURE_TO_CAN(ford_overlay_bp_shadow_curvature_raw);
         violation |= safety_max_limit_check(shadow, cap, -cap);
+      }
+      if ((!tx || violation) && !curvature_violation && (controls_allowed || controls_allowed_lateral)) {
+        // The shared check accepted the curvature, but Ford rejected the
+        // whole frame. It never reached the EPS, so cannot advance curvature
+        // history. Preserve shared-check resets and traffic counters otherwise.
+        curvature_state.desired_last = curvature_last;
       }
       tx &= !violation;
     }

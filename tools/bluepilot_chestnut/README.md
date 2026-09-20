@@ -104,6 +104,45 @@ current curvature envelope, and control-mode changes send a neutral inactive
 frame before activating the new strategy. Current shared `safety/lateral.h` is
 unchanged. Passing software tests is not proof of vehicle-level safety or tuning.
 
+### Steering review, 2026-09-19
+
+Independent review and compiled-hook reproductions found two defects:
+
+- A Ford-local rejection could advance the shared curvature history even though
+  the complete command never reached the EPS. At 25 m/s, five rejected commands
+  could prepare an accepted 90-CAN-unit step from zero; a direct step was blocked.
+  Ford-local rejections now restore that history when the shared curvature check
+  itself passed. The shared check's own resets and transmit counters are retained.
+- The angle strategy used asymmetric wire bounds before the controller negated
+  its result. An internal +0.5096 rad could wrap from requested -0.5096 to encoded
+  +0.5145 rad and be persistently rejected. Internal limits now invert the unchanged
+  DBC range, including the hard-saturation thresholds. Real CAN and CAN FD packing
+  and compiled safety reproduced the failure and accepted the corrected sequence.
+
+The numerical firmware limits were not changed by these fixes. A compiled sweep
+against the pinned BP donor found a mixed envelope, not general equivalence:
+
+- At 5 m/s, the largest accepted curvature step from zero was 0.00252 1/m in BP
+  and 0.01122 1/m in this branch, on CAN and CAN FD.
+- At 25 m/s on CAN FD, the accepted steady curvature ceiling was 0.00386 1/m in
+  BP and 0.00624 1/m here. At that speed the step from zero was 0.00032 1/m in both.
+- At 35 m/s, the step from zero decreased from 0.00020 to 0.00016 1/m. Classic
+  CAN also gains the current speed-dependent absolute cap that the donor lacked.
+
+These are isolated firmware acceptance probes with initialized measurements and
+command history, not vehicle acceleration measurements. The new cap uses a speed
+tolerance, so its accepted curvature ceiling is not simply 3.6 divided by the
+reported speed squared. The final Python adapter can increase the donor's result
+to track measured curvature: in a synthetic 25 m/s CAN FD case it changed
+0.00385824 to 0.00435824 1/m. The older nominal cap is therefore not a final bound.
+
+One inherited behavior remains unqualified: after a 0.6-second driver steering
+press in a synthetic 25 m/s curve (curvature 0.003 1/m), the proactive stall blip
+produced six inactive frames, or 300 ms, followed by a ramp from zero. Its
+path-angle threshold does not establish straight driving. The behavior is
+unchanged; the vehicle's response and the reset's benefit require recorded-route,
+bench, and controlled vehicle evidence before fleet release.
+
 ## Build and validation
 
 The packaged release omitted its source build definitions. The 25 restored files
@@ -124,8 +163,8 @@ python tools/bluepilot_chestnut/preflight.py
 scons --minimal -j4
 uv pip install pytest pytest-xdist scipy pillow ruff ruamel.yaml jsonschema
 python -m pytest -q \
-  opendbc_repo/opendbc/safety/tests/test_ford.py \
-  opendbc_repo/opendbc/safety/tests/test_ford_bluepilot.py \
+  opendbc_repo/opendbc/safety/tests \
+  --ignore=opendbc_repo/opendbc/safety/tests/misra \
   opendbc_repo/opendbc/car/ford/tests \
   opendbc_repo/opendbc/sunnypilot/car/ford/tests \
   opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
@@ -137,7 +176,9 @@ python tools/bluepilot_chestnut/preflight.py --models-only
 The full minimal native build, including Panda ARM firmware, has passed locally
 in Ubuntu 24.04. TICI and MICI layouts have been constructed and rendered under
 Xvfb. Hardware networking and camera/vehicle operation were not exercised there.
-The workflow repeats the build and focused tests from a clean Linux checkout.
+The workflow repeats the build, all vehicle safety-hook tests, and focused Ford
+integration tests from a clean Linux checkout. The separate MISRA static-analysis
+and analyzer-mutation tests are not included in this workflow.
 
 All 18 precompiled 1B driving-model chunks and their manifest are inherited
 unchanged and SHA-256 checked against `model_artifacts.json`. Neither local

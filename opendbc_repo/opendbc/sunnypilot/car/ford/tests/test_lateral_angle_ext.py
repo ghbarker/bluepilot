@@ -20,10 +20,12 @@ import unittest
 from dataclasses import dataclass
 from unittest import mock
 
+from opendbc.can import CANPacker
 from opendbc.car import structs
+from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.values import CAR, CarControllerParams
 from opendbc.car.interfaces import scale_tire_stiffness
-from opendbc.sunnypilot.car.ford import lateral_curv_ext
+from opendbc.sunnypilot.car.ford import fordcan_ext, lateral_curv_ext
 from opendbc.sunnypilot.car.ford.values_ext import FordSafetyFlagsSP
 from opendbc.sunnypilot.car.ford.lateral_curv_ext import LateralCurvExt
 from opendbc.sunnypilot.car.ford.lateral_angle_ext import LateralAngleExt
@@ -218,6 +220,65 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, expected)
     self.assertNotAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
     self.assertTrue(self.ext.bp_curvature_deviation_limited)
+
+
+class TestPathAngleWireLimits(unittest.TestCase):
+  def setUp(self):
+    self.cp = _explorer_cp()
+    self.packer = CANPacker('ford_lincoln_base_pt')
+    self.can = CanBus(self.cp)
+
+  def _packed_path_angle(self, path_angle, canfd):
+    # CarController negates the strategy result for both Ford message formats.
+    if canfd:
+      _, data, _ = fordcan_ext.create_lat_ctl2_msg(
+        self.packer, self.can, 1, 0, 1, 0., -path_angle, 0., 0., 0)
+      raw = ((data[3] & 0x1f) << 6) | (data[4] >> 2)
+    else:
+      _, data, _ = fordcan_ext.create_lat_ctl_msg(
+        self.packer, self.can, True, 0, 1, 0., -path_angle, 0., 0.)
+      raw = (data[3] << 3) | (data[4] >> 5)
+    return (raw - 1000) * 0.0005
+
+  def _update(self, ext, curvature):
+    # At 7 m/s these curve-entry steps fit controlsd's acceleration and jerk
+    # limits. Matching model and planner curvature exercises the default blend.
+    ext.model = _Model()
+    ext.model.orientationRate.z = [curvature * 7.] * 33
+    cs = _CS(vEgoRaw=7., vEgo=7., yawRate=-curvature * 7.)
+    return ext.update_angle_strategy(_CC(), cs, _Actuators(curvature), self.cp)
+
+  def test_curve_entry_preserves_direction_after_can_packing(self):
+    for sign in (-1, 1):
+      for canfd in (False, True):
+        with self.subTest(sign=sign, canfd=canfd):
+          ext = _Harness(self.cp)
+          previous_wire_angle = 0.
+          for curvature in [0.046] * 80 + [0.051] + [0.056] * 5:
+            lat = self._update(ext, sign * curvature)
+            wire_angle = self._packed_path_angle(lat.path_angle, canfd)
+            # This caught +0.5096 internally wrapping from -0.5096 to +0.5145
+            # on CAN, followed by indefinitely rejected steering commands.
+            self.assertAlmostEqual(wire_angle, -lat.path_angle, delta=0.00025)
+            self.assertLessEqual(abs(wire_angle - previous_wire_angle), 0.0555)
+            previous_wire_angle = wire_angle
+
+  def test_hard_saturation_tracks_each_wire_boundary(self):
+    for previous, desired, expected in ((0.46, 0.07, 0.46), (-0.46, -0.07, -0.515)):
+      with self.subTest(previous=previous):
+        ext = _Harness(self.cp)
+        ext.path_angle_last = previous
+        self.assertAlmostEqual(self._update(ext, desired).path_angle, expected)
+
+  def test_clip_uses_full_representable_range_after_negation(self):
+    for previous, desired, expected in ((0.449, 0.08, 0.5), (-0.47, -0.08, -0.5235)):
+      with self.subTest(previous=previous):
+        ext = _Harness(self.cp)
+        ext.path_angle_last = previous
+        lat = self._update(ext, desired)
+        self.assertAlmostEqual(lat.path_angle, expected)
+        for canfd in (False, True):
+          self.assertAlmostEqual(self._packed_path_angle(lat.path_angle, canfd), -expected)
 
 
 class TestMeasurementSelection(unittest.TestCase):
