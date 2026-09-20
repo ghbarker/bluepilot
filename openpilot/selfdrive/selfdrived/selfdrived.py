@@ -22,6 +22,9 @@ from openpilot.selfdrive.selfdrived.events import Events, ET
 from openpilot.selfdrive.selfdrived.helpers import ExcessiveActuationCheck
 from openpilot.selfdrive.selfdrived.state import StateMachine
 from openpilot.selfdrive.selfdrived.alertmanager import AlertManager, set_offroad_alert
+# BluePilot: presentation only; leave steering events and controller requests intact.
+from openpilot.selfdrive.selfdrived.ford_steering_alert import FordSteeringAlert
+# End BluePilot
 
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware import HARDWARE
@@ -103,7 +106,9 @@ class SelfdriveD(CruiseHelper):
     # TODO: de-couple selfdrived with card/conflate on carState without introducing controls mismatches
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
 
-    ignore = self.sensor_packets + self.gps_packets + ['alertDebug', 'lateralManeuverPlan'] + ['modelDataV2SP', 'longitudinalPlanSP']
+    # BluePilot: optional Ford display feedback must not gate engagement or health checks.
+    ignore = self.sensor_packets + self.gps_packets + ['alertDebug', 'lateralManeuverPlan', 'carStateBP'] + ['modelDataV2SP', 'longitudinalPlanSP']
+    # End BluePilot
     if SIMULATION:
       ignore += ['cabinCameraState', 'managerState']
     if REPLAY:
@@ -113,7 +118,7 @@ class SelfdriveD(CruiseHelper):
                                    'carOutput', 'driverMonitoringState', 'longitudinalPlan', 'deviceMotion', 'lateralDelay',
                                    'managerState', 'vehicleParameters', 'radarState', 'lateralTorqueParameters',
                                    'controlsState', 'carControl', 'driverAssistance', 'alertDebug', 'userBookmark',
-                                   'lateralManeuverPlan', 'modelDataV2SP', 'longitudinalPlanSP'] + \
+                                   'lateralManeuverPlan', 'modelDataV2SP', 'longitudinalPlanSP', 'carStateBP'] + \
                                    self.camera_packets + self.sensor_packets + self.gps_packets,
                                   ignore_alive=ignore, ignore_avg_freq=ignore,
                                   ignore_valid=ignore, frequency=int(1/DT_CTRL))
@@ -133,6 +138,10 @@ class SelfdriveD(CruiseHelper):
 
     self.CS_prev = car.CarState.new_message()
     self.AM = AlertManager()
+    # BluePilot: track freshness independently of the fallback CS_prev value.
+    self.ford_steering_alert = FordSteeringAlert(mici=HARDWARE.get_device_type() == 'mici')
+    self.car_state_timestamp = 0
+    # End BluePilot
     self.events = Events()
 
     self.initialized = False
@@ -557,6 +566,10 @@ class SelfdriveD(CruiseHelper):
   def data_sample(self):
     _car_state = messaging.recv_one(self.car_state_sock)
     CS = _car_state.carState if _car_state else self.CS_prev
+    # BluePilot: never quiet a retained warning using a stale carState fallback.
+    if _car_state is not None:
+      self.car_state_timestamp = _car_state.logMonoTime if _car_state.valid else 0
+    # End BluePilot
 
     self.sm.update(0)
 
@@ -617,6 +630,13 @@ class SelfdriveD(CruiseHelper):
 
     self.AM.add_many(self.sm.frame, alerts + alerts_sp)
     self.AM.process_alerts(self.sm.frame, clear_event_types)
+    # BluePilot: change only the rendered alert. The event set, state machine,
+    # minimum visual duration, HUD steering-required signal, and actuation remain intact.
+    if self.CP.brand == 'ford':
+      self.AM.current_alert = self.ford_steering_alert.update(
+        self.AM.current_alert, EventName.steerSaturated in self.events.names, self.sm.frame,
+        time.monotonic_ns(), CS, self.car_state_timestamp, self.sm)
+    # End BluePilot
 
   def publish_selfdriveState(self, CS):
     # selfdriveState

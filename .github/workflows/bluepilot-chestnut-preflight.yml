@@ -50,6 +50,8 @@ jobs:
             opendbc_repo/opendbc/sunnypilot/car/ford/tests \
             opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
             openpilot/selfdrive/ui/bp/tests \
+            openpilot/selfdrive/selfdrived/tests/test_alertmanager.py \
+            openpilot/selfdrive/selfdrived/tests/test_alerts.py \
             openpilot/sunnypilot/system/tests/test_params_migration.py \
             openpilot/sunnypilot/sunnylink/tests/test_settings_changes.py \
             openpilot/sunnypilot/sunnylink/tests/test_capabilities.py \

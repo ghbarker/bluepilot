@@ -263,6 +263,30 @@ longitudinal proportional-gain fields. Those display consumers are corrected and
 tested using current message types. These are source-level corrections; the
 owner-review changes have not been installed or verified on a vehicle.
 
+### Ford warning presentation, 2026-09-19
+
+The Ford steering warning now distinguishes a tracking shortfall ("Steering Not
+Keeping Up") from fresh PSCM feedback reporting a near/reached steering limit.
+The event trigger, priority, steering-required HUD signal, visual lifetime,
+controller requests, limits, and safety checks are unchanged. This is presentation
+only; the optional feedback subscription cannot gate engagement or health checks.
+
+A retained warning changes to "Steering Alert / Check Steering Response" only
+after the trigger clears and 0.3 seconds of fresh, active, fault-free telemetry
+confirms tracking within the existing angle/acceleration criteria and Ford reports
+no limit. Driver override, low speed, stale/missing data, or a reported limit does
+not qualify. After at least one second of the initial warning, the recovered tail
+stops requesting repeated sound. A renewed trigger restores the takeover wording
+and sound immediately. Critical alerts are untouched.
+
+Offline replay of 23 captured full log segments retained noise throughout every
+active warning trigger, including the recorded steering-command rejection/fault
+window. The known recovered transient quieted only during its retained tail.
+Unit/integration tests cover stale data, overrides, faults, non-finite inputs,
+limits, recurrence, alert priority/lifetime, non-Ford behavior, and unchanged
+requests. Both screen sizes were rendered. This does not fix the separately
+observed command rejection or qualify the branch for road/fleet use.
+
 ### Device startup corrections, 2026-09-19
 
 A comma four/Mach-E installation exposed two migration defects. The BP menu used
