@@ -26,7 +26,7 @@ def render_check(params_dir, metric):
     import pyray as rl
     import numpy as np
     from opendbc.car import structs
-    from openpilot.cereal import log
+    from openpilot.cereal import log, messaging
     from openpilot.common.constants import CV
     from openpilot.system.ui.lib.application import gui_app
     from openpilot.selfdrive.ui.bp.mici.onroad import complication
@@ -118,6 +118,19 @@ def render_check(params_dir, metric):
         from bluepilot.ui.widgets.debug.other_debug_panel import OtherDebugPanel
 
         renderer = ModelRendererBP()
+        # The older display must use the current calibration service too.
+        sm.recv_frame = {'extrinsicsCalibration': 1, 'modelV2': 1}
+        sm.updated = {'carParams': False, 'modelV2': True, 'radarState': True}
+        sm['extrinsicsCalibration'] = log.ExtrinsicsCalibration.new_message(height=[1.22]).as_reader()
+        sm['selfdriveState'] = log.SelfdriveState.new_message().as_reader()
+        sm['modelV2'] = log.ModelDataV2.new_message().as_reader()
+        with patch.object(complication.ui_state, 'started_frame', 1):
+          rl.begin_drawing()
+          try:
+            renderer.render(rect)
+          finally:
+            rl.end_drawing()
+        assert renderer._path_offset_z == pytest.approx(1.22)
         renderer._path.raw_points = np.array([[0., 0., 0.], [100., 0., 0.]])
         renderer._camera_offset = renderer._path_offset_z = 0.
         renderer._map_to_screen = MagicMock(return_value=(100., 100.))
@@ -125,6 +138,13 @@ def render_check(params_dir, metric):
         metrics = ChevronMetricsBP()
         theme = RadRacerTheme()
         debug_panel = OtherDebugPanel()
+        for service in ('carOutput', 'carParams', 'deviceState'):
+          sm[service] = getattr(messaging.new_message(service), service).as_reader()
+          sm.valid[service] = True
+        debug_panel._update_main(sm)
+        debug_panel._update_tuning(sm)
+        debug_panel._update_firmware(sm)
+        debug_panel._update_device(sm)
         torque_bar = SimpleNamespace(_torque_filter=SimpleNamespace(x=0.))
         sm.valid['radarState'] = True
 

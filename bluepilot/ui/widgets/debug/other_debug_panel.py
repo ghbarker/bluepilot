@@ -274,7 +274,6 @@ class OtherDebugPanel(Widget):
         ("Fault (Perm)", _fmt_bool(cs.steerFaultPermanent)),
       ])
       cards[2].set_rows([
-        ("Brake", f"{cs.brake:.3f}"),
         ("Brake Pressed", _fmt_bool(cs.brakePressed)),
         ("Gas Pressed", _fmt_bool(cs.gasPressed)),
         ("Regen Braking", _fmt_bool(cs.regenBraking)),
@@ -403,16 +402,11 @@ class OtherDebugPanel(Widget):
       long_rows = []
       try:
         lt = cp.longitudinalTuning
-        kp_bp = [f"{v:.1f}" for v in list(lt.kpBP)]
-        kp_v = [f"{v:.4f}" for v in list(lt.kpV)]
         ki_bp = [f"{v:.1f}" for v in list(lt.kiBP)]
         ki_v = [f"{v:.4f}" for v in list(lt.kiV)]
         long_rows = [
-          ("Kp BP", ", ".join(kp_bp) if kp_bp else "N/A"),
-          ("Kp V", ", ".join(kp_v) if kp_v else "N/A"),
           ("Ki BP", ", ".join(ki_bp) if ki_bp else "N/A"),
           ("Ki V", ", ".join(ki_v) if ki_v else "N/A"),
-          ("Kf", f"{lt.kf:.6f}"),
         ]
       except (AttributeError, IndexError):
         long_rows = [("Status", "N/A")]
