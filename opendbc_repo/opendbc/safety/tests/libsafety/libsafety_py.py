@@ -10,7 +10,7 @@ from opendbc.safety import LEN_TO_DLC
 libsafety_dir = os.path.dirname(os.path.abspath(__file__))
 
 
-def _build_libsafety() -> str:
+def _build_libsafety(release: bool = False) -> str:
   """Compile libsafety.so to a temp file and return its path."""
   root = str(Path(libsafety_dir).parents[3])
   safety_c = os.path.join(libsafety_dir, "safety.c")
@@ -18,13 +18,14 @@ def _build_libsafety() -> str:
   cflags = [
     '-Wall', '-Wextra', '-Werror', '-nostdlib', '-fno-builtin',
     '-std=gnu11', '-Wfatal-errors', '-Wno-pointer-to-int-cast',
-    '-g', '-O0', '-fno-omit-frame-pointer', '-DALLOW_DEBUG',
-    '-fprofile-arcs', '-ftest-coverage',
+    '-g', '-O0', '-fno-omit-frame-pointer',
   ]
   ldflags = [
     '-fsanitize=undefined', '-fno-sanitize-recover=undefined',
-    '-fprofile-arcs', '-ftest-coverage',
   ]
+  if not release:
+    cflags += ['-DALLOW_DEBUG', '-fprofile-arcs', '-ftest-coverage']
+    ldflags += ['-fprofile-arcs', '-ftest-coverage']
 
   fd, safety_os = tempfile.mkstemp(suffix='.os', dir=libsafety_dir)
   os.close(fd)
@@ -91,6 +92,11 @@ int get_desired_angle_last();
 void set_angle_meas(int min, int max);
 int get_angle_meas_min(void);
 int get_angle_meas_max(void);
+void set_desired_curvature_last(int t);
+int get_desired_curvature_last();
+void set_curvature_meas(int min, int max);
+int get_curvature_meas_min(void);
+int get_curvature_meas_max(void);
 
 bool get_cruise_engaged_prev(void);
 void set_cruise_engaged_prev(bool engaged);
@@ -119,10 +125,6 @@ bool get_controls_allowed_lateral(void);
 bool get_controls_requested_lateral(void);
 void set_current_safety_param_sp(uint16_t param);
 uint16_t get_current_safety_param_sp(void);
-int get_ford_pinion_geometry_count(void);
-float get_ford_pinion_geometry_slip_factor(int idx);
-float get_ford_pinion_geometry_steer_ratio(int idx);
-float get_ford_pinion_geometry_wheelbase(int idx);
 bool get_enable_mads(void);
 bool get_disengage_lateral_on_brake(void);
 bool get_pause_lateral_on_brake(void);
