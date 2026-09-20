@@ -40,13 +40,17 @@ class MiciComplication(Widget):
     self._font_color: rl.Color = rl.Color(255, 255, 255, 180)
     self._car_state = None
     self._render_type = 1
-    self._last_active_time = 0.0
+    self._last_active_time: float | None = None
 
     self.params = Params()
 
   def _update_state(self):
-     self._render_type = self.params.get("mici_complication")
-     bp_ui_log.state("MiciComplication", "render_type", self._render_type)
+    render_type = self.params.get("mici_complication")
+    if render_type != self._render_type:
+      # A new display has no cached lead value to fade until it has rendered one.
+      self._last_active_time = None
+    self._render_type = render_type
+    bp_ui_log.state("MiciComplication", "render_type", self._render_type)
 
   def _render(self, rect: rl.Rectangle) -> None:
     """Draw the first lead vehicle speed and unit."""
@@ -60,7 +64,7 @@ class MiciComplication(Widget):
       self._car_state.gearShifter != structs.CarState.GearShifter.reverse
     self._radar_state = self.sm['radarState'] if self.sm.valid['radarState'] else None
     self._lead_one = self._radar_state.leadOne if self._radar_state else None
-    has_lead_one = self._lead_one.status if self._lead_one else False
+    has_lead_one = self._lead_one.present if self._lead_one else False
     self._render_lead_indicator = self._radar_state is not None and has_lead_one and in_gear
 
     match self._render_type:
@@ -86,6 +90,8 @@ class MiciComplication(Widget):
       self.vRel = self._lead_one.vRel
       fade_ratio = 1.0
     else:
+      if self._last_active_time is None:
+        return
       delay_time = time.monotonic() - self._last_active_time
       if delay_time > DELAY:
         return
@@ -160,6 +166,8 @@ class MiciComplication(Widget):
         self.dist *= 3.28084
       fade_ratio = 1.0
     else:
+      if self._last_active_time is None:
+        return
       delay_time = time.monotonic() - self._last_active_time
       if delay_time > DELAY:
         return
@@ -193,6 +201,8 @@ class MiciComplication(Widget):
       self.ttc = (self.dist / self._car_state.vEgoCluster) if (self._car_state.vEgoCluster > 0) else 0.0
       fade_ratio = 1.0
     else:
+      if self._last_active_time is None:
+        return
       delay_time = time.monotonic() - self._last_active_time
       if delay_time > DELAY:
         return
