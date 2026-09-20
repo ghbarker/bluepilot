@@ -1,0 +1,234 @@
+{
+  "versions": {
+    "6.1.0": {
+      "agnos_version": "17.2",
+      "changes": [
+        "Synced with latest upstream SunnyPilot (Chrysler CUSW, Rivian, Tesla, Honda, Hyundai updates)",
+        "New is_bluepilot() detection system — all stock file overrides are now guarded and labeled",
+        "Refactored BP overrides in card.py, cruise.py, and desire_helper.py into dedicated BP modules",
+        "Extracted rainbow path and gradient circle GPU shaders to bluepilot/ui/lib/bp_shaders.py",
+        "Extracted ICBM cruise helpers to bluepilot/selfdrive/car/bp_cruise.py",
+        "Extracted BP message publishing to bluepilot/selfdrive/car/bp_card_publisher.py",
+        "Extracted blinker pause logic to bluepilot/selfdrive/controls/bp_desire_helper.py",
+        "Extracted WiFi WPA2/WPA3 cipher support to bluepilot/system/ui/lib/bp_wifi.py",
+        "Ford opendbc refactored to sunnypilot extension layer",
+        "Forced fingerprint safety net reads CarPlatformBundle directly in fingerprint()",
+        "Added lateralManeuverPlan support from upstream",
+        "Updated submodules: panda, msgq, rednose",
+        "macOS build support for Cabana with dynamic parallel job detection",
+        "Added replay tool support for non-larch64 architectures"
+      ],
+      "fixes": [
+        "Fixed BigButtonBP crash after upstream removed icon_size parameter",
+        "Fixed MiciLabel import crash after upstream replaced it with UnifiedLabel",
+        "Fixed BigConfirmationDialogV2 rename to BigConfirmationDialog",
+        "Fixed FontWeight.LIGHT removal — replaced with DISPLAY_REGULAR",
+        "Fixed UnifiedLabel font_size property no longer having a setter",
+        "Fixed WiFi _get_connections() removed upstream — use _connections dict directly",
+        "Fixed missing gui_app.texture() tint parameter removed upstream",
+        "Fixed missing pyray import in MICI settings layout",
+        "Fixed ford.h build error: FORD_INACTIVE_CURVATURE_RATE_CANFD constant name mismatch",
+        "Fixed jotpluggler build on macOS: restored missing layout.cc from upstream",
+        "Fixed wifi_manager missing upstream error handling for WiFi properties",
+        "Fixed onroad brightness timer not expiring due to normal alerts resetting it",
+        "Fixed stale scons lock and plotjuggler build issues from merge",
+        "General stability improvements from upstream merge compatibility fixes"
+      ],
+      "removals": [
+        "Removed rainbow/circle shaders from stock shader_polygon.py (preserved in BP module)",
+        "Removed vendored _panda/ directory (now uses submodule)"
+      ]
+    },
+    "6.0.1": {
+      "agnos_version": "13.1",
+      "changes": [
+        "Synced with latest upstream SunnyPilot changes",
+        "On-device MICI vehicle selector with support for all makes|C4",
+        "Flat and arched powerflow meter style options with large/small sizes|C3X",
+        "BluePilot and SunnyPilot BSM can now be toggled separately",
+        "Enhanced ACC coasting behavior with option to disable downhill assist for vehicles that handle it natively",
+        "Auto lane change now disables under a specified speed instead of fully disabling lateral control",
+        "Improved chevron rendering with better outline overlap prevention",
+        "Improved radar overlay with cleaner visuals and centered messages to prevent truncation",
+        "Onroad performance: Cached per-frame Params reads to reduce video stutter",
+        "Enabled additional GPS signals for better location lock",
+        "Preferred WiFi network selector for MICI devices|C4",
+        "Pill alerts moved to bottom of display with increased sizes",
+        "Organized C3X settings menu|C3X",
+        "Renamed Hands Free UI option to BlueCruise Dash Icon",
+        "Ford: Added Ford Edge MK2 to vehicle menu and fingerprints",
+        "Ford: Block BlueCruise hands-free message on CAN vehicles",
+        "Ford ICBM: Multiple improvements to speed target handling and button detection"
+      ],
+      "fixes": [
+        "Fixed TICI screen dimming behavior|C3X",
+        "Fixed stale scons lock file on boot",
+        "Fixed confidence ball display in reverse and speedometer hiding",
+        "Fixed MICI powerflow style toggle and menu consistency|C4",
+        "Fixed broken MICI float button behavior|C4",
+        "Fixed MICI blindspot description|C4",
+        "Fixed driver monitoring and battery stat widget display",
+        "Fixed sidebar and recent changes panel crashes|C3X",
+        "Fixed broken items from SunnyPilot sync including controlStateBP",
+        "Fixed WiFi manager with upstream sync and improved error handling",
+        "Synced onroad brightness timeout logic with upstream SunnyPilot",
+        "Ford ICBM: Fixed initial cruise speed capture, button timers, and PCM initialization",
+        "Ford ICBM-SLA: Fixed button detection for ICBM vehicles",
+        "General stability improvements and UI crash prevention"
+      ],
+      "removals": [
+        "Removed SunnyLink integration",
+        "Removed orphan parameters and unused logic"
+      ]
+    },
+    "6.0.0": {
+      "agnos_version": "13.1",
+      "changes": [
+        "All of the latest upstream SunnyPilot changes",
+        "BluePilot Portal: New React-based Progressive Web App (PWA) for device management",
+        "BluePilot Portal: Home Dashboard with system status, drive stats, and disk space visualization",
+        "BluePilot Portal: Routes Management with video playback, GPS maps, and camera exports",
+        "BluePilot Portal: Settings Panel for configuring all parameters from browser with WebSocket updates",
+        "BluePilot Portal: Diagnostics Panel with real-time TMUX streaming and parameter browser",
+        "New BluePilot sidebar with WiFi status display and improved network information",
+        "Enhanced Onroad UI: Improved lane lines, road edges, and path rendering with glow effects and smoother curve tracking",
+        "Completely redesigned settings menu with reorganized panels for better navigation",
+        "New Software Panel with integrated updater, branch management, and model selection",
+        "Added Routes Panel with video playback support (beta) for viewing dashcam footage",
+        "Model info widget and enhanced drive stats widget for onroad display",
+        "Developer UI: New customizable debug panel with adjustable settings",
+        "Brightness control system with perceptual brightness correction for better viewing",
+        "Enhanced overlay system: Refactored HUD rendering for better performance and modularity",
+        "Brake status indicator: Now uses brake light CAN signal when available for more accurate display",
+        "Network Panel: WiFi management with connection status, signal strength, and SSID detection",
+        "Crash detection hooks: Better error reporting and stacktrace collection for debugging",
+        "Added option to bypass BluePilot lateral controls for testing purposes",
+        "Onroad display behavior controls: dimming percentage and timeout settings",
+        "OSM Panel: OpenStreetMap integration improvements",
+        "Models Panel: Easy switching between different driving models",
+        "Ford: Human Turn Detection latch increased to 3.0 seconds for better turn handling",
+        "Ford: Improved EPAS wind-up prevention during human turns",
+        "Ford: Better yaw threshold handling at 12.5 m/s"
+      ],
+      "fixes": [
+        "Fixed BPSelection control description text display in settings",
+        "Fixed radar overlay speed unit matching with system settings",
+        "Fixed BP Updater crashes on built branches without submodules",
+        "Fixed HybridDriveBatteryGauge calculations for more accurate battery percentage display",
+        "Fixed hybrid gauge scaling when sidebar is visible",
+        "Fixed sunnylink card display issues in sidebar",
+        "Fixed onroad debug panel width utilization for better screen usage",
+        "Fixed brightness control system interactions and perceptual brightness",
+        "Fixed menu system JSON parsing and control visibility conditions",
+        "Fixed WiFi SSID detection and display in sidebar",
+        "Fixed stop sign overlay positioning and rendering",
+        "Fixed lane line mapping using model transform for better accuracy",
+        "Improved thread safety and exception handling in sidebar rendering",
+        "Fixed alert overlay styling to match the rest of the UI",
+        "General stability improvements and bug fixes throughout the UI",
+        "Fixed web server crash on first enable by installing dependencies in background",
+        "Fixed WiFi connection handling to check for known connections before prompting for passwords",
+        "Ford: Fixed blocked messages after human turn reset",
+        "Ford: Fixed message blocking issues during speed transitions in panda safety",
+        "Ford: Fixed Ford Escape MK4.5 naming (ESCAPE_MK5 to ESCAPE_MK4_5)"
+      ],
+      "removals": [
+        "Removed the GForce Meter from the HUD (overlay system replaced it)",
+        "Removed quiet mode feature from menus",
+        "Removed constant fan animation from sidebar (now shows memory only)",
+        "Removed OnlyOnroadWhenInGear feature"
+      ]
+    },
+    "5.0.0": {
+      "agnos_version": "13.1",
+      "changes": [
+        "All of the latest upstream SunnyPilot changes",
+        "BluePilot Portal: New React-based Progressive Web App (PWA) for device management",
+        "BluePilot Portal: Home Dashboard with system status, drive stats, and disk space visualization",
+        "BluePilot Portal: Routes Management with video playback, GPS maps, and camera exports",
+        "BluePilot Portal: Settings Panel for configuring all parameters from browser with WebSocket updates",
+        "BluePilot Portal: Diagnostics Panel with real-time TMUX streaming and parameter browser",
+        "New BluePilot sidebar with WiFi status display and improved network information",
+        "Enhanced Onroad UI: Improved lane lines, road edges, and path rendering with glow effects and smoother curve tracking",
+        "Completely redesigned settings menu with reorganized panels for better navigation",
+        "New Software Panel with integrated updater, branch management, and model selection",
+        "Added Routes Panel with video playback support (beta) for viewing dashcam footage",
+        "Model info widget and enhanced drive stats widget for onroad display",
+        "Developer UI: New customizable debug panel with adjustable settings",
+        "Brightness control system with perceptual brightness correction for better viewing",
+        "Enhanced overlay system: Refactored HUD rendering for better performance and modularity",
+        "Brake status indicator: Now uses brake light CAN signal when available for more accurate display",
+        "Network Panel: WiFi management with connection status, signal strength, and SSID detection",
+        "Crash detection hooks: Better error reporting and stacktrace collection for debugging",
+        "Added option to bypass BluePilot lateral controls for testing purposes",
+        "Web-based routes viewer for logs and cereal data with stop functionality",
+        "Onroad display behavior controls: dimming percentage and timeout settings",
+        "OSM Panel: OpenStreetMap integration improvements",
+        "Models Panel: Easy switching between different driving models",
+        "Ford: Human Turn Detection latch increased to 3.0 seconds for better turn handling",
+        "Ford: Improved EPAS wind-up prevention during human turns",
+        "Ford: Better yaw threshold handling at 12.5 m/s"
+      ],
+      "fixes": [
+        "Fixed BPSelection control description text display in settings",
+        "Fixed radar overlay speed unit matching with system settings",
+        "Fixed BP Updater crashes on built branches without submodules",
+        "Fixed HybridDriveBatteryGauge calculations for more accurate battery percentage display",
+        "Fixed hybrid gauge scaling when sidebar is visible",
+        "Fixed sunnylink card display issues in sidebar",
+        "Fixed onroad debug panel width utilization for better screen usage",
+        "Fixed brightness control system interactions and perceptual brightness",
+        "Fixed menu system JSON parsing and control visibility conditions",
+        "Fixed WiFi SSID detection and display in sidebar",
+        "Fixed stop sign overlay positioning and rendering",
+        "Fixed lane line mapping using model transform for better accuracy",
+        "Improved thread safety and exception handling in sidebar rendering",
+        "Fixed alert overlay styling to match the rest of the UI",
+        "General stability improvements and bug fixes throughout the UI",
+        "Fixed web server crash on first enable by installing dependencies in background",
+        "Fixed WiFi connection handling to check for known connections before prompting for passwords",
+        "Ford: Fixed blocked messages after human turn reset",
+        "Ford: Fixed message blocking issues during speed transitions in panda safety",
+        "Ford: Fixed Ford Escape MK4.5 naming (ESCAPE_MK5 to ESCAPE_MK4_5)"
+      ],
+      "removals": [
+        "Removed the GForce Meter from the HUD (overlay system replaced it)",
+        "Removed quiet mode feature from menus",
+        "Removed constant fan animation from sidebar (now shows memory only)",
+        "Removed OnlyOnroadWhenInGear feature"
+      ],
+      "known_issues": [
+        "Routes Panel video playback is in beta and may have performance issues on some devices"
+      ]
+    },
+    "4.0.0": {
+      "agnos_version": "12.0",
+      "changes": [
+        "Added this recent changes dialog functionality to offroad transition in UI",
+        "Added the fan demand percentage to the sidebar.  Just tap on the memory card to toggle it",
+        "Enhanced stop sign detection and rendering with improved vehicle state checks and visual effects",
+        "Refactored HybridDriveGauge and HybridBatteryGauge with enhanced automotive styling",
+        "Added a new GForceMeter to the HUD",
+        "Enhanced stop sign rendering with improved position and size smoothing",
+        "Refactored lead tracking logic with enhanced stability requirements",
+        "Complete rewrite of advanced lateral control.  In-lane position is now handle stand-alone and is smoother",
+        "Updates to lateral control logic to incorporate dynamic lag calculation",
+        "Reset low speed torque limits to match bp-2.1",
+        "Updated 'steering limited exceeded' warning logic to reduce false alerts",
+        "Added a new parameter to control the speed color when the brake is pressed",
+        "Added restriction to the calibration that require the car to have 2 valid lane lines before starting the calibration",
+        "Latest Upstream SunnyPilot changes"
+      ],
+      "fixes": [
+        "Fixed compilation errors in BluePilot UI components",
+        "Performance improvements to hopefully fix the random UI restarts",
+        "Enhanced stop detection and rendering with improved data validation",
+        "Latest Upstream SunnyPilot fixes"
+      ],
+      "removals": [
+        "Disabled routes panel for now until we get FFMpeg hardware decoding working then it will be added back and allow for video playback like a dashcam"
+      ],
+      "known_issues": []
+    }
+  }
+}

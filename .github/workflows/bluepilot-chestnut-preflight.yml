@@ -1,44 +1,58 @@
-name: BluePilot Chestnut preparation checks (not release qualification)
+name: BluePilot Chestnut source validation
 
 on:
   push:
     branches: [cursor/chestnut-ford-overlay-4d25]
   pull_request:
-    paths:
-      - 'tools/bluepilot_chestnut/**'
-      - '.github/workflows/bluepilot-chestnut-preflight.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  preflight:
+  ford-overlay:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
+    env:
+      SKIP_TINYGRAD_COMPILE: '1'
+      UV_PROJECT_ENVIRONMENT: /tmp/bluepilot-venv
+      VIRTUAL_ENV: /tmp/bluepilot-venv
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/opendbc_repo:${{ github.workspace }}/msgq_repo:${{ github.workspace }}/rednose_repo:${{ github.workspace }}/tinygrad_repo
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
-      - name: Fetch pinned reference commits for read-only checks
+      - name: Verify preserved Chestnut source and model artifacts
+        run: python3 tools/bluepilot_chestnut/preflight.py
+      - name: Install Linux build dependencies
         run: |
-          git fetch --no-tags --depth=1 https://github.com/sunnypilot/sunnypilot.git dd29072b71a06c9ce125a481ced431ba995b84f6
-          git fetch --no-tags --depth=1 https://github.com/BluePilotDev/bluepilot.git e22afa6be9b881fa784c92ebb316db47728a3d81
-      - name: Install standalone Ford safety test dependencies
+          sudo apt-get update
+          sudo apt-get install -y clang build-essential libffi-dev xvfb libgl1-mesa-dri libegl1 libgl1 libgles2
+          python3 -m venv "$RUNNER_TEMP/uv-bootstrap"
+          "$RUNNER_TEMP/uv-bootstrap/bin/pip" install uv
+          export PATH="$RUNNER_TEMP/uv-bootstrap/bin:$PATH"
+          uv sync --locked --extra submodules --extra tools
+          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest pytest-xdist scipy pillow ruff ruamel.yaml jsonschema
+          echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+      - name: Build native consumers and Panda firmware without compiling driving models
+        run: scons --minimal -j4
+      - name: Test upstream and BluePilot Ford safety, control, UI, and integration
         run: |
-          python3 -m venv /tmp/bluepilot-preflight-venv
-          /tmp/bluepilot-preflight-venv/bin/pip install numpy cffi pycapnp==2.1.0 pycryptodome tqdm
-      - name: Test preflight failure handling
-        run: python3 -m unittest tools.bluepilot_chestnut.test_preflight
-      - name: Confirm blocked status and reproduce donor C API incompatibility
-        shell: bash
-        run: |
-          set +e
-          python3 tools/bluepilot_chestnut/preflight.py --probe-donor
-          status=$?
-          set -e
-          test "$status" -eq 2
-      - name: Test unchanged upstream Ford safety baseline
-        env:
-          PYTHONPATH: ${{ github.workspace }}/opendbc_repo
-        run: /tmp/bluepilot-preflight-venv/bin/python -m unittest opendbc.safety.tests.test_ford
+          python -m pytest -q \
+            opendbc_repo/opendbc/safety/tests/test_ford.py \
+            opendbc_repo/opendbc/safety/tests/test_ford_bluepilot.py \
+            opendbc_repo/opendbc/car/ford/tests \
+            opendbc_repo/opendbc/sunnypilot/car/ford/tests \
+            opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
+            openpilot/selfdrive/ui/bp/tests \
+            openpilot/sunnypilot/system/tests/test_params_migration.py \
+            openpilot/sunnypilot/sunnylink/tests/test_settings_changes.py \
+            openpilot/sunnypilot/sunnylink/tests/test_capabilities.py \
+            openpilot/selfdrive/car/tests/test_cruise_speed.py \
+            openpilot/system/hardware/tests/test_fan_controller.py \
+            tools/bluepilot_chestnut
+      - name: Check migrated Python names
+        run: python tools/bluepilot_chestnut/check_python.py
+      - name: Confirm driving-model artifacts are unchanged after the build
+        run: python tools/bluepilot_chestnut/preflight.py --models-only

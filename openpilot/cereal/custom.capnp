@@ -479,10 +479,131 @@ struct CustomReserved11 @0xc2243c65e0340384 {
 struct CustomReserved12 @0x9ccdc8676701b412 {
 }
 
-struct CustomReserved13 @0xcd96dafb67a082d0 {
+struct ControllerStateBP @0xcd96dafb67a082d0 {
+  lateralUncertainty @0 :Float32;  # BluePilot: lateral uncertainty for angleState (e.g. torque bar)
+  # BluePilot: lateral rate-limit diagnostics (troubleshooting)
+  angleRateLimited     @1 :Bool;  # angle mode: the path_angle soft-ROC clip actually bit this frame
+  curvatureRateLimited @2 :Bool;  # would the equivalent curvature have been rate-limited by lateral_curv_ext (sim)
+  # BluePilot: did the current_curvature +- CURVATURE_ERROR clip constrain the commanded curvature
+  # this frame (deviation from measured, not rate-of-change)? Set by whichever strategy is active
+  # (lateral_curv_ext.py or lateral_angle_ext.py) -- tells you what limited a maneuver: ROC
+  # (angleRateLimited) vs deviation from current curvature (this).
+  curvatureDeviationLimited @3 :Bool;
+  humanTurnLateralPaused @4 :Bool;  # angle mode: lateral forced inactive (mode 0) during a manual turn
+  stallBlipActive @5 :Bool;  # angle mode: brief mode-0 pulse resetting PSCM authority after a post-override stall
+
+  # BluePilot: full BluePilot-menu settings snapshot, for PlotJuggler/route analysis without
+  # reading logs. "bms" = BluePilot Menu Setting. One field per on-device menu item (TICI + MICI
+  # union); refreshed on a cache interval, not every frame -- see bp_card_publisher.py.
+  # CONVENTION: when adding a new menu item, add a field here and publish it in
+  # bp_card_publisher.py. When removing a menu item, rename the field to bmsRemovedSpareNN (keep
+  # the @N slot occupied -- never renumber or reuse a retired field's ordinal).
+
+  # --- System ---
+  bmsUiDebugLogging @6 :Bool;  # BPUIDebugLog
+  bmsConnectBackend @7 :UInt8;  # BPConnectBackend: 0=Comma Connect, 1=Konik Stable, 2=Offline Mode
+  bmsWebRoutesServerEnabled @8 :Bool;  # EnableWebRoutesServer
+  bmsPreferredWifiNetwork @9 :Text;  # WifiFavoriteSSID
+
+  # --- Vehicle ---
+  bmsShowBlueCruiseUiOnCluster @10 :Bool;  # send_hands_free_cluster_msg
+  bmsTwelveVBatteryLimit @11 :Float32;  # vbatt_pause_charging
+
+  # --- Visuals ---
+  bmsHideOnroadBorder @12 :Bool;  # BPHideOnroadBorder
+  bmsDisableLaneLineStatusColor @13 :Bool;  # BPDisableLaneLineStatusColor
+  bmsMinimalDrivingView @14 :Bool;  # BPHideCameraView
+  bmsEightBitRacerTheme @15 :Bool;  # BPRadRacerTheme (TICI only)
+  bmsRainbowLaneLines @16 :Bool;  # BPRainbowLines
+  bmsShowBlindspotOverlay @17 :Bool;  # ShowBlindspotOverlay
+  bmsShowBrakeStatus @18 :Bool;  # ShowBrakeStatus
+  bmsShowConfidenceBall @19 :Bool;  # BPShowConfidenceBall (TICI only)
+  bmsAnimateSteeringWheel @20 :Bool;  # BPAnimateSteeringWheel
+  bmsWheelIconStyle @21 :UInt8;  # BPSteeringWheelIconStyle: 0=Comma 4, 1=Comma 3x
+  bmsShowRadarLeadOverlay @22 :Bool;  # FordPrefShowRadarLeadOverlay
+  bmsRadarOverlaySize @23 :UInt8;  # FordPrefRadarOverlaySize: 0=small, 1=medium, 2=large
+  bmsShowHybridBatteryStatus @24 :Bool;  # FordPrefHybridBatteryStatus
+  bmsShowHybridPowerFlow @25 :Bool;  # FordPrefHybridPowerFlow
+  bmsHybridDriveGaugeSize @26 :UInt8;  # FordPrefHybridDriveGaugeSize: 1=small, 2=large
+  bmsHybridGaugeStyle @27 :UInt8;  # FordPrefGaugeStyle: 0=flat, 1=arched (TICI only)
+  bmsHybridPowerFlowStyleRound @28 :Bool;  # FordPrefHybridPowerFlowAlternate (MICI only)
+  bmsLowerRightDisplay @29 :UInt8;  # mici_complication: 0=off..4=time to lead (MICI only)
+  bmsRainbowMode @30 :Bool;  # RainbowMode -- upstream sunnypilot param, shown in BP MICI visuals
+  bmsHideOnroadFade @31 :Bool;  # mici_hide_onroad_fade (MICI only)
+
+  # --- Longitudinal Tuning ---
+  bmsBypassBpLongitudinalControl @32 :Bool;  # disable_BP_long_UI
+  bmsDisableDownhillCompensation @33 :Bool;  # disable_downhill_comp_UI
+  bmsDisableFordRadarVisionOnly @34 :Bool;  # disable_ford_radar_UI
+
+  # --- Lateral Tuning ---
+  bmsDisableBpLateralControl @35 :Bool;  # disable_BP_lat_UI
+  bmsPrimaryControlVariable @36 :UInt8;  # FordPrefLateralControl: 0=curvature, 1=angle
+  bmsDisableLaneChangeUnderSpeed @37 :Bool;  # BlinkerPauseLaneChange
+  bmsMinimumSpeedToPauseLaneChange @38 :UInt8;  # BlinkerMinLateralControlSpeed
+  bmsShowLateralControlMode @39 :Bool;  # BpShowLateralControl
+
+  # --- Angle Tuning (angle-mode-only menu items) ---
+  bmsLowSpeedAdjustmentFactor @40 :Float32;  # FordLowSpeedFactor_ang
+  bmsHighSpeedAdjustmentFactor @41 :Float32;  # FordHighSpeedFactor_ang
+  bmsLaneChangeFactorHighAngle @42 :Float32;  # lane_change_factor_high_ang
+
+  # --- Curvature Tuning (curvature-mode-only menu items) ---
+  bmsEnableHumanTurnDetection @43 :Bool;  # enable_human_turn_detection_curv
+  bmsLaneChangeFactorHighCurvature @44 :Float32;  # lane_change_factor_high_curv
+  bmsEnableLanePositioning @45 :Bool;  # enable_lane_positioning_curv
+  bmsInLaneOffset @46 :Float32;  # custom_path_offset_curv
+  bmsEnableLanefullMode @47 :Bool;  # enable_lane_full_mode_curv
+  bmsUseCustomTuningProfile @48 :Bool;  # custom_profile_curv
+  bmsPredictedCurvatureBlendRatioHigh @49 :Float32;  # pc_blend_ratio_high_C_UI_curv
+  bmsPredictedCurvatureBlendRatioLow @50 :Float32;  # pc_blend_ratio_low_C_UI_curv
+  bmsCenteringPidGain @51 :Float32;  # LC_PID_gain_UI_curv
+
+  # --- Fingerprint (not a menu item, but requested alongside the settings snapshot) ---
+  bmsFingerprintForced @52 :Bool;  # true when CarParams.fingerprintSource == fixed (CarPlatformBundle / FINGERPRINT env)
+  bmsFingerprint @53 :Text;  # CarParams.carFingerprint
+
+  # BluePilot: lateral mode the car controller actually ran this frame (not the param).
+  # Only published by Ford BP, so other cars show nothing.
+  activeLateralMode @54 :LateralMode;
+
+  enum LateralMode {
+    openpilot @0;  # BP lateral bypassed (disable_BP_lat_UI)
+    curvature @1;
+    angle @2;
+  }
 }
 
-struct CustomReserved14 @0xb057204d7deadf3f {
+struct CarStateBP @0xb057204d7deadf3f {
+  hybridDrive @0 :HybridDrive;
+  hybridBattery @1 :HybridBattery;
+  brakeLightStatus @2 :BrakeLightStatus;
+
+  struct HybridDrive {
+    dataAvailable @0 :Bool;
+    throttleDemandPercent @1 :Float32;
+    throttleThresholdPercent @2 :Float32;
+    powerFlowMode @3 :Text;
+    powerFlowModeValue @5 :UInt8;  # Raw numeric value for PlotJuggler compatibility
+    engineOnReason @4 :Text;
+    engineOnReasonValue @6 :UInt8;  # Raw numeric value for PlotJuggler compatibility
+  }
+
+  struct HybridBattery {
+    dataAvailable @0 :Bool;
+    voltHighLimit @1 :Float32;
+    voltLowLimit @2 :Float32;
+    voltActual @3 :Float32;
+    ampsActual @4 :Float32;  # from MtrTracData_1_FD1; Battery_Traction_1 carries no current on Mach-E
+    socMinPerc @5 :Float32;
+    socMaxPerc @6 :Float32;
+    socActual @7 :Float32;
+  }
+
+  struct BrakeLightStatus {
+    dataAvailable @0 :Bool;
+    brakeLightsOn @1 :Bool;
+  }
 }
 
 struct CustomReserved15 @0xbd443b539493bc68 {

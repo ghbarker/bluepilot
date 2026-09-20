@@ -91,7 +91,8 @@ function launch {
   # start manager
   cd openpilot/system/manager
   if [ ! -f $DIR/prebuilt ]; then
-    ./build.py
+    python3 "$DIR/tools/bluepilot_chestnut/preflight.py" --models-only || exit 1
+    ./build.py || exit 1
   fi
   ./manager.py
 

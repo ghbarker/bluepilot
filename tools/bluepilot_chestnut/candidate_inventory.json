@@ -1,5 +1,5 @@
 {
-  "note": "Screened candidate set, not a complete integration manifest. New-at-mapped-path does not prove a donor-only file: current code may have moved. Text merges have not been imported, type-checked, or installed. See README for excluded changes and semantic blockers.",
+  "note": "Historical three-way screening inventory before implementation. New-at-mapped-path and clean text merges do not prove compatibility. See README and the current PR diff for the implemented overlay and validation.",
   "base": "dd29072b71a06c9ce125a481ced431ba995b84f6",
   "donor": "e22afa6be9b881fa784c92ebb316db47728a3d81",
   "openpilot_common_ancestor": "01a843e0acbe74d566a7eee9fe0f12f227ae81ed",

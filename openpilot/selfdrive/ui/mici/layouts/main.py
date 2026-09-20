@@ -14,6 +14,11 @@ from openpilot.system.ui.lib.application import gui_app
 if gui_app.sunnypilot_ui():
   from openpilot.selfdrive.ui.sunnypilot.mici.layouts.settings import SettingsLayoutSP as SettingsLayout
   from openpilot.selfdrive.ui.sunnypilot.mici.layouts.home import MiciHomeLayoutSP as MiciHomeLayout
+# BluePilot substitutes the car views; current body and alert handling stays intact.
+from openpilot.common.bluepilot import is_bluepilot
+if is_bluepilot():
+  from openpilot.selfdrive.ui.bp.mici.layouts.home import BpMiciHomeLayout as MiciHomeLayout
+  from openpilot.selfdrive.ui.bp.mici.onroad.augmented_road_view_bp import MiciAugmentedRoadViewBP as AugmentedRoadView
 
 ONROAD_DELAY = 2.5  # seconds
 

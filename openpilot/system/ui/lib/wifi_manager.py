@@ -26,6 +26,9 @@ from openpilot.system.ui.lib.networkmanager import (NM, NM_WIRELESS_IFACE, NM_80
                                                     NM_DEVICE_TYPE_WIFI, NM_ACTIVE_CONNECTION_IFACE,
                                                     NM_IP4_CONFIG_IFACE, NM_PROPERTIES_IFACE, NMDeviceState, NMDeviceStateReason)
 
+from openpilot.common.bluepilot import is_bluepilot
+from openpilot.common.hardware import PC
+
 if TYPE_CHECKING:
   from openpilot.common.params import Params
 else:
@@ -81,6 +84,10 @@ def get_security_type(flags: int, wpa_flags: int, rsn_flags: int) -> SecurityTyp
   # obtained by looking at flags of networks in the office as reported by an Android phone
   supports_wpa = (NM_802_11_AP_SEC_PAIR_WEP40 | NM_802_11_AP_SEC_PAIR_WEP104 | NM_802_11_AP_SEC_GROUP_WEP40 |
                   NM_802_11_AP_SEC_GROUP_WEP104 | NM_802_11_AP_SEC_KEY_MGMT_PSK)
+  # BluePilot: extend with TKIP/CCMP/SAE for WPA2/WPA3 — fixes blank SSIDs on C4/MICI
+  if is_bluepilot():
+    from bluepilot.system.ui.lib.bp_wifi import SUPPORTS_WPA_EXTENDED
+    supports_wpa = SUPPORTS_WPA_EXTENDED
 
   if (flags == NM_802_11_AP_FLAGS_NONE) or ((flags & NM_802_11_AP_FLAGS_WPS) and not (wpa_props & supports_wpa)):
     return SecurityType.OPEN
@@ -167,7 +174,8 @@ class WifiManager:
       self._conn_monitor = open_dbus_connection_blocking(bus="SYSTEM")  # used by state monitor thread
       self._nm = DBusAddress(NM_PATH, bus_name=NM, interface=NM_IFACE)
     except FileNotFoundError:
-      cloudlog.exception("Failed to connect to system D-Bus")
+      if not PC:
+        cloudlog.exception("Failed to connect to system D-Bus")
       self._router_main = None
       self._conn_monitor = None
       self._exit = True
@@ -203,6 +211,10 @@ class WifiManager:
     self._scan_lock = threading.Lock()
     self._scan_thread = threading.Thread(target=self._network_scanner, daemon=True)
     self._state_thread = threading.Thread(target=self._monitor_state, daemon=True)
+    # BluePilot: favorite network auto-connect
+    if is_bluepilot():
+      from openpilot.selfdrive.ui.bp.lib.wifi_favorite import WifiFavoriteManager
+      self._favorite_manager = WifiFavoriteManager(self)
     self._initialize()
     atexit.register(self.stop)
 
@@ -219,6 +231,10 @@ class WifiManager:
         self._add_tethering_connection()
 
       self._init_wifi_state()
+
+      # BluePilot: start favorite network background scanner
+      if is_bluepilot():
+        self._favorite_manager.start()
 
       self._tethering_password = self._get_tethering_password()
       cloudlog.debug("WifiManager initialized")
@@ -524,8 +540,8 @@ class WifiManager:
         dev_type = self._router_main.send_and_get_reply(Properties(dev_addr).get('DeviceType')).body[0][1]
         if dev_type == adapter_type:
           return str(device_path)
-    except Exception as e:
-      cloudlog.exception(f"Error getting adapter type {adapter_type}: {e}")
+    except Exception:
+      pass
     return None
 
   def _init_connections(self) -> None:
@@ -849,8 +865,9 @@ class WifiManager:
     if reply.header.message_type == MessageType.error:
       cloudlog.warning(f"Failed to request scan: {reply}")
 
-  def _update_networks(self, block: bool = True):
-    if not self._active:
+  def _update_networks(self, block: bool = True,
+                       force: bool = False):  # BluePilot: force=True refreshes AP list when settings UI is hidden
+    if not self._active and not force:
       return
 
     def worker():
@@ -944,6 +961,9 @@ class WifiManager:
         self._scan_thread.join()
       if self._state_thread.is_alive():
         self._state_thread.join()
+      # BluePilot: stop favorite network auto-connect
+      if is_bluepilot() and hasattr(self, '_favorite_manager'):
+        self._favorite_manager.stop()
 
       if self._router_main is not None:
         self._router_main.close()

@@ -504,6 +504,12 @@ class GuiApplication(GuiApplicationExt):
     """Load and resize an image, storing it for later automatic unloading."""
     image = rl.load_image(image_path)
 
+    # BluePilot: guard against corrupt/truncated assets or LFS pointers that load as 0x0
+    if image.width <= 0 or image.height <= 0:
+      cloudlog.error("Invalid image dimensions from %r: %dx%d", image_path, image.width, image.height)
+      rl.unload_image(image)
+      image = rl.gen_image_color(1, 1, rl.Color(0, 0, 0, 0))
+
     if alpha_premultiply:
       rl.image_alpha_premultiply(image)
 
@@ -655,6 +661,9 @@ class GuiApplication(GuiApplicationExt):
         frame_time = rl.get_frame_time()
         cpu_time = time.monotonic() - frame_start
         yield True, frame_time, cpu_time
+
+        if self._scale != 1.0:
+          rl.rl_pop_matrix()
 
         if self._scale != 1.0:
           rl.rl_pop_matrix()

@@ -15,6 +15,11 @@ from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.multilang import tr
 
+# BluePilot additions retain the current Models, sunnylink and offroad controls.
+from openpilot.common.bluepilot import is_bluepilot
+if is_bluepilot():
+  from openpilot.selfdrive.ui.bp.mici.layouts.settings.bluepilot import BluePilotLayoutMici
+
 ICON_SIZE = 70
 BIG_ICON_SIZE = 110
 
@@ -74,6 +79,12 @@ class SettingsLayoutSP(OP.SettingsLayout):
     items.insert(0, self._disable_offroad_btn)
     # end slot: enable-offroad (right of developer)
     items.append(self._enable_offroad_btn_offroad)
+
+    if is_bluepilot():
+      bp_panel = BluePilotLayoutMici(back_callback=gui_app.pop_widget)
+      bp_button = SettingsBigButton("bluepilot", "", gui_app.texture("icons_mici/settings/car_icon.png", ICON_SIZE, ICON_SIZE))
+      bp_button.set_click_callback(lambda: gui_app.push_widget(bp_panel))
+      items.insert(4, bp_button)
 
     self._scroller._items.clear()
     for item in items:

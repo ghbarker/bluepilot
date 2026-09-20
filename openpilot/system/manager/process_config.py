@@ -5,6 +5,9 @@ import platform
 from opendbc.car.structs import car
 from openpilot.cereal import custom
 from openpilot.common.params import Params
+# BluePilot: optional Ford UI and Portal processes.
+from openpilot.common.bluepilot import is_bluepilot
+# End BluePilot
 from openpilot.common.hardware import PC, COMMA_HARDWARE
 from openpilot.system.manager.process import PythonProcess, NativeProcess, DaemonProcess
 from openpilot.common.hardware.hw import Paths
@@ -126,7 +129,9 @@ procs = [
 
   PythonProcess("sensord", "openpilot.system.sensord.sensord", only_onroad, enabled=not PC),
   PythonProcess("ui", "openpilot.selfdrive.ui.ui", always_run),
-  PythonProcess("soundd", "openpilot.selfdrive.ui.soundd", driverview),
+  # BluePilot: the BP subclass preserves the current stock sound daemon interface.
+  PythonProcess("soundd", "openpilot.selfdrive.ui.bp.soundd_bp" if is_bluepilot() else "openpilot.selfdrive.ui.soundd", driverview),
+  # End BluePilot
   PythonProcess("locationd", "openpilot.selfdrive.locationd.locationd", only_onroad),
   NativeProcess("_pandad", "openpilot/selfdrive/pandad", ["./pandad"], always_run, enabled=False),
   PythonProcess("calibrationd", "openpilot.selfdrive.locationd.calibrationd", only_onroad),
@@ -195,5 +200,18 @@ if os.path.exists("../../third_party/copyparty/copyparty-sfx.py"):
   copyparty_args += ["-z"]
   copyparty_args += ["-q"]
   procs += [NativeProcess("copyparty-sfx", "openpilot/third_party/copyparty", ["./copyparty-sfx.py", *copyparty_args], and_(only_offroad, use_copyparty))]
+
+# BluePilot: portal and route preprocessor processes
+if is_bluepilot():
+  def _bp_portal_enabled(started, params, CP):
+    return params.get_bool("EnableWebRoutesServer")
+  def _bp_route_preprocessor_enabled(started, params, CP):
+    return params.get_bool("EnableWebRoutesServer") and only_offroad(started, params, CP)
+  procs += [
+    PythonProcess("bp_portal", "bluepilot.backend.bp_portal", _bp_portal_enabled),
+    PythonProcess("bp_route_preprocessor", "bluepilot.backend.routes.preprocessor", _bp_route_preprocessor_enabled),
+  ]
+
+# End BluePilot
 
 managed_processes = {p.name: p for p in procs}
