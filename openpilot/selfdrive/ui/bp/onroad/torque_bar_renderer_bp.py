@@ -262,8 +262,6 @@ class TorqueBarRendererBP(TorqueBarStateBP):
 
     if is_active:
       start_color, end_color = self._torque_colors(start_color, end_color)
-    self._render_limit_label_bp(cx, effective_rect.y + effective_rect.height - 17 * self._scale,
-                                alpha, 12 * self._scale, effective_rect.width - 20)
     gradient = Gradient(
       start=(start_grad_pt, 0),
       end=(end_grad_pt, 0),
@@ -352,8 +350,6 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         rl.draw_rectangle_rounded(rounded_rect, roundness, STRIP_CORNER_SEGMENTS, fill_color)
       rl.end_scissor_mode()
 
-    self._render_limit_label_bp(strip_rect.x + strip_rect.width / 2, strip_rect.y - 24,
-                                alpha, 20, strip_rect.width)
     # --- Center tick ---
     center_x = strip_rect.x + strip_rect.width / 2
     rl.draw_line_ex(
@@ -427,5 +423,3 @@ class TorqueBarRendererBP(TorqueBarStateBP):
         bar_start_angle, bar_end_angle,
       )
       draw_polygon(rect, fill_pts, color=fill_color)
-    self._render_limit_label_bp(cx, cy - strip_mid_r - strip_thickness / 2 - 22 * scale,
-                                alpha, 18 * scale, rect.width)

@@ -82,21 +82,6 @@ class TorqueBarStateBP:
       return rl.Color(r, g, b, start_color.a), rl.Color(r, g, b, end_color.a)
     return start_color, end_color
 
-  def _render_limit_label_bp(self, cx, y, alpha, font_size, max_width):
-    if not self._bp_ford_arc or not self._bp_torque_valid or not self._bp_limit_display.label or alpha < .01:
-      return
-    import pyray as rl
-    from openpilot.system.ui.lib.application import gui_app, FontWeight
-    from openpilot.system.ui.lib.text_measure import measure_text_cached
-    font = gui_app.font(FontWeight.MEDIUM)
-    label = self._bp_limit_display.label
-    width = measure_text_cached(font, label, font_size).x
-    font_size *= min(1., max_width / max(width, 1.))
-    width = measure_text_cached(font, label, font_size).x
-    r, g, b = self._bp_limit_display.rgb
-    rl.draw_text_ex(font, label, rl.Vector2(cx - width / 2 + 1, y + 1), font_size, 0, rl.Color(0, 0, 0, int(220 * alpha)))
-    rl.draw_text_ex(font, label, rl.Vector2(cx - width / 2, y), font_size, 0, rl.Color(r, g, b, int(255 * alpha)))
-
   def _roll_compensation_weight_bp(self, v_ego: float) -> float:
     # Roll is less accurate near standstill, so reduce its effect at low speed.
     # Full roll compensation makes crowned straightaways look like steering bias.
