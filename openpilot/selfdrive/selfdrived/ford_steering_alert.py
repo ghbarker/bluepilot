@@ -22,16 +22,19 @@ class FordSteeringAlert:
     self.first_frame = None
     self.last_frame = None
     self.recovery_frames = 0
+    self.sound_silenced = False
 
   def update(self, alert, event_active, frame, now_ns, CS, car_state_timestamp, sm):
     if alert.alert_type != "steerSaturated/warning":
       self.first_frame = self.last_frame = None
       self.recovery_frames = 0
+      self.sound_silenced = False
       return alert
 
     if self.last_frame is None or frame != self.last_frame + 1:
       self.first_frame = frame
       self.recovery_frames = 0
+      self.sound_silenced = False
     self.last_frame = frame
 
     def valid(service):
@@ -53,6 +56,7 @@ class FordSteeringAlert:
     }.get(limit, "Steering Not Keeping Up")
 
     tracking_recovered = False
+    can_keep_quiet = False
     if (not event_active and limit == 0 and fresh(car_state_timestamp, now_ns) and CS.canValid
         and not CS.steeringPressed and not CS.steerFaultTemporary and not CS.steerFaultPermanent
         and all(valid(s) for s in ('controlsState', 'carControl', 'modelV2'))):
@@ -66,18 +70,34 @@ class FordSteeringAlert:
         finite = all(math.isfinite(v) for v in (error, speed, actual, desired))
         # Clearing due to driver override, a stale message, low-speed gating,
         # or saturation-timer decay is not proof that steering caught up.
-        following = ((abs(desired) <= 1.0 and abs(actual) <= 1.0)
+        gentle = abs(desired) <= 1.0 and abs(actual) <= 1.0
+        following = (gentle
                      or (actual * desired > 0 and abs(desired) <= 1.2 * abs(1e-3 + actual)))
-        tracking_recovered = (finite and CS.vEgo > 5.0 and lateral.active and sm['carControl'].latActive and not lateral.saturated
+        can_keep_quiet = (finite and CS.vEgo > 5.0 and lateral.active and sm['carControl'].latActive
+                          and (gentle or actual * desired > 0))
+        tracking_recovered = (can_keep_quiet and not lateral.saturated
                               and abs(error) <= STEER_ANGLE_SATURATION_THRESHOLD and following)
 
     self.recovery_frames = self.recovery_frames + 1 if tracking_recovered else 0
+    if not can_keep_quiet:
+      # A new event, Ford limit, fault, override, or unverifiable control restores
+      # the existing alert immediately. A restarted tone gets its delivery window.
+      if self.sound_silenced:
+        self.first_frame = frame
+      self.sound_silenced = False
     if self.recovery_frames >= RECOVERY_FRAMES:
+      if frame - self.first_frame >= MIN_SOUND_FRAMES:
+        self.sound_silenced = True
+
+    if self.recovery_frames >= RECOVERY_FRAMES or self.sound_silenced:
       # Retain the original visual lifetime, but describe a past warning rather
       # than an ongoing limit. This deliberately does not say "safe" or "all clear".
       displayed.alert_text_1 = "Steering Alert"
       displayed.alert_text_2 = "Check Steering Response"
-      if frame - self.first_frame >= MIN_SOUND_FRAMES:
+      if self.sound_silenced:
+        # Once recovery has quieted this retained alert, small tracking changes
+        # must pass the normal warning detector before restarting its sound.
+        # Never use this latch to qualify initial recovery or change an event.
         displayed.audible_alert = log.SelfdriveState.AudibleAlert.none
 
     if self.mici:

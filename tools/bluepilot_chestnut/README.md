@@ -334,6 +334,32 @@ limits, recurrence, alert priority/lifetime, non-Ford behavior, and unchanged
 requests. Both screen sizes were rendered. This does not fix the separately
 observed command rejection or qualify the branch for road/fleet use.
 
+### Recovered warning sound, 2026-09-21
+
+The captured 07:30:54 local-time warning cleared its triggering event, quieted
+after recovery, then requested repeated sound again at 07:30:56.2 without a new
+`steerSaturated` event. The presentation helper was re-evaluating its strict
+recovery thresholds on every frame, including after it had already quieted the
+retained alert.
+
+Confirmed sound suppression now persists for that retained alert while fresh,
+valid telemetry confirms active control, no Ford limit, no driver override or
+steering fault, and no substantial opposite-direction response. Small tracking
+fluctuations must pass the existing event detector to restart the sound. A new
+event, reported limit, fault, or unverifiable control restores the original
+warning immediately. A restarted sound receives the existing delivery window
+while the alert remains selected. Another alert or a frame discontinuity resets
+the latch. Initial recovery criteria, initial warning activation, visual lifetime,
+steering requests, and safety limits remain unchanged.
+
+Validation: seven new regression cases failed before the fix; all 64 warning and
+alert-manager tests pass afterward, along with lint. Offline presentation replay
+of 23 previously captured full log segments preserves sound for active warning
+events and the known rejection/fault window. The new 07:30 event was captured in
+summary logs only; its observed recovery/restart sequence informs the regression
+tests, but is not a full-rate replay or proof that the initial chime was spurious.
+This change has not been installed or verified on the vehicle.
+
 ### Device startup corrections, 2026-09-19
 
 A comma four/Mach-E installation exposed two migration defects. The BP menu used
