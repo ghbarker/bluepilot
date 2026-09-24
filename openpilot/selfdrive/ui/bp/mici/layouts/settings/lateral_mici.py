@@ -166,7 +166,8 @@ class LateralLayoutMici(NavScroller):
   def _update_toggles(self):
     ui_state.update_params()
     for key, item in self._refresh_toggles:
-      item.set_checked(ui_state.params.get_bool(key))
+      state = bool(ui_state.params.get(key, return_default=True)) if key == "FordAngleAutoCalLock" else ui_state.params.get_bool(key)
+      item.set_checked(state)
     plat_idx = PrimaryLateralControl(ui_state.params.get("FordPrefLateralControl", return_default=True) or 0)
     is_angle = (plat_idx == PrimaryLateralControl.angle)
     is_curv = not is_angle

@@ -84,10 +84,15 @@ class AutoCalController:
         self.status = "reset"
         return
       enabled = bool(params.get_bool("FordAngleAutoCal"))
+      if not enabled:
+        self._disarm(params)
+        return
       # Lock behavior toggle (default ON): with the lock OFF the calibration never
       # freezes — and an EXISTING lock is treated as "resume from this evidence", not
       # as finished, so flipping the toggle un-locks without losing anything.
-      lock_on = bool(params.get_bool("FordAngleAutoCalLock"))
+      # Chestnut's get_bool does not return the registered default for an absent key.
+      lock_value = params.get("FordAngleAutoCalLock", return_default=True)
+      lock_on = True if lock_value is None else bool(lock_value)
       state = params.get("FordAngleAutoCalState", return_default=True) or ""
       if isinstance(state, bytes):
         state = state.decode("utf-8", errors="replace")
@@ -147,6 +152,19 @@ class AutoCalController:
       self._error(self.status)
 
   # -- 20 Hz frames ------------------------------------------------------------------------
+  def _disarm(self, params):
+    """BluePilot: own off/reset persistence so UI and remote toggles behave alike."""
+    self.enabled = False
+    self.pipeline = None
+    self.done = False
+    self._dirty = False
+    self._save_s = 0.0
+    self._last_written = None
+    self._params = params
+    self.status = "off"
+    if params.get("FordAngleAutoCalState", return_default=True):
+      params.put("FordAngleAutoCalState", "", True)
+
   def idle(self):
     """Frames where lateral is inactive (disengaged / human turn / stall blip)."""
     if self.pipeline is not None:
@@ -163,6 +181,11 @@ class AutoCalController:
     reads them back — single reader); the lock -> disarm transition and save cadence
     happen here."""
     if not self.enabled or self.pipeline is None:
+      return
+    # The settings callback can clear persisted evidence before the 1 Hz poll.
+    # Observe disable before another frame can nudge or save the old pipeline back.
+    if self._params is not None and not self._params.get_bool("FordAngleAutoCal"):
+      self._disarm(self._params)
       return
     if not delay_estimated or not math.isfinite(frame.lateral_delay) or frame.lateral_delay <= 0.0:
       # BluePilot: learning or unusable delay cannot align a measured response with

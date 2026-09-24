@@ -142,3 +142,36 @@ def test_current_params_float_writes_and_serialized_telemetry(tmp_path):
     assert event.controllerStateBP.bmsAngleAutoCalibrate
     assert event.controllerStateBP.bmsAngleAutoCalState == ctl.status
     assert event.controllerStateBP.angleSaturated
+
+
+def test_ui_clear_cannot_be_repopulated_before_slow_parameter_poll(tmp_path):
+  params = Params(str(tmp_path / 'params'))
+  params.put_bool("FordAngleAutoCal", True, block=True)
+  ctl = AutoCalController(DT)
+  ctl.poll_params(params, 1., 1., PLATFORM_GAIN_HIGH)
+  ctl.pipeline = _evidenced_pipe()
+  ctl._save("collecting", (1., 1.))
+  ctl._dirty = True
+  ctl._save_s = 30.
+  # Same parameter operations as the UI, before the controller's next 1 Hz poll.
+  params.put("FordAngleAutoCalState", "", block=True)
+  params.put_bool("FordAngleAutoCal", False, block=True)
+  ctl.feed(_frame(10., .004, .004), delay_estimated=True)
+  assert not ctl.enabled and ctl.pipeline is None
+  assert params.get("FordAngleAutoCalState", return_default=True) == ""
+  assert params.get("FordLowSpeedFactor_ang", return_default=True) == 1.
+
+
+def test_remote_disable_clears_finished_lock_without_a_ui_callback(tmp_path):
+  params = Params(str(tmp_path / 'params'))
+  params.put_bool("FordAngleAutoCal", True, block=True)
+  params.put("FordAngleAutoCalState", 'done low=1.10 high=1.05 verified', block=True)
+  ctl = AutoCalController(DT)
+  ctl.poll_params(params, 1.1, 1.05, PLATFORM_GAIN_HIGH)
+  assert ctl.done and not ctl.enabled
+  params.put_bool("FordAngleAutoCal", False, block=True)
+  ctl.poll_params(params, 1.1, 1.05, PLATFORM_GAIN_HIGH)
+  params.put_bool("FordAngleAutoCal", True, block=True)
+  ctl.poll_params(params, 1.1, 1.05, PLATFORM_GAIN_HIGH)
+  assert ctl.enabled and not ctl.done and ctl.pipeline.est.n == 0
+  assert ctl._last_written == (1.1, 1.05)

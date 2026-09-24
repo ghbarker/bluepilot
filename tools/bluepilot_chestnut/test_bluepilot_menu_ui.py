@@ -66,7 +66,8 @@ def render_check(params_dir, saved_settings, hardware):
         for panel in panels:
           gui_app.push_widget(panel)
           render(panel, rect)  # Construction alone missed the first-frame crash.
-          for item in panel._scroller.items:
+          items = panel._scroller._items if hardware == 'tici' else panel._scroller.items
+          for item in items:
             # Exercise controls beyond the initially visible scroller viewport.
             render(item, rl.Rectangle(0, 0, item.rect.width, item.rect.height))
           panel.hide_event()

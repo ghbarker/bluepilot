@@ -571,7 +571,7 @@ class BluePilotLayout(Widget):
                  "5 minutes of driving. Off: it never locks and keeps adapting continuously — "
                  "turning this off on an already-locked car resumes calibration from its saved "
                  "evidence without losing anything."),
-      initial_state=self._safe_get_bool(self._params, "FordAngleAutoCalLock", default=True),
+      initial_state=bool(self._params.get("FordAngleAutoCalLock", return_default=True)),
       callback=lambda state: self._toggle_callback(state, "FordAngleAutoCalLock"),
       icon="chffr_wheel.png"
     )
@@ -912,6 +912,8 @@ class BluePilotLayout(Widget):
     # Refresh toggles from params to mirror external changes (use fresh for params we just wrote)
     for key, item in self._refresh_toggles:
       state = fresh[key] if key in fresh else self._safe_get_bool(ui_state.params, key)
+      if key == "FordAngleAutoCalLock" and key not in fresh:
+        state = bool(ui_state.params.get(key, return_default=True))
       item.action_item.set_state(state)
 
     wheel_style_idx = int(get_steering_wheel_icon_style(ui_state.params, SteeringWheelIconStyle.COMMA_3X))
