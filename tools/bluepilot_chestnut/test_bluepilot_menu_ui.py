@@ -7,15 +7,16 @@ import pytest
 
 
 @pytest.mark.parametrize('saved_settings', ['fresh', 'configured'])
-def test_bluepilot_menu_opens_renders_and_reopens(tmp_path, saved_settings):
+@pytest.mark.parametrize('hardware', ['mici', 'tici'])
+def test_bluepilot_menu_opens_renders_and_reopens(tmp_path, saved_settings, hardware):
   result = subprocess.run(['xvfb-run', '-a', sys.executable, str(Path(__file__).resolve()),
-                           str(tmp_path / 'params'), saved_settings],
+                           str(tmp_path / 'params'), saved_settings, hardware],
                           env={**os.environ, 'BIG': '0', 'SCALE': '1'},
                           capture_output=True, text=True, timeout=40)
   assert result.returncode == 0, result.stdout + result.stderr
 
 
-def render_check(params_dir, saved_settings):
+def render_check(params_dir, saved_settings, hardware):
   from unittest.mock import patch
   from openpilot.common.params import Params
 
@@ -56,8 +57,12 @@ def render_check(params_dir, saved_settings):
           finally:
             rl.end_drawing()
 
-        panels = [BluePilotLayoutMici(back_callback=lambda: None), VehicleLayoutMici(), AudioLayoutMici(),
-                  VisualsLayoutMici(), LateralLayoutMici(), LongitudinalLayoutMici()]
+        if hardware == 'tici':
+          from openpilot.selfdrive.ui.bp.layouts.settings.bluepilot import BluePilotLayout
+          panels = [BluePilotLayout()]
+        else:
+          panels = [BluePilotLayoutMici(back_callback=lambda: None), VehicleLayoutMici(), AudioLayoutMici(),
+                    VisualsLayoutMici(), LateralLayoutMici(), LongitudinalLayoutMici()]
         for panel in panels:
           gui_app.push_widget(panel)
           render(panel, rect)  # Construction alone missed the first-frame crash.
@@ -75,4 +80,4 @@ def render_check(params_dir, saved_settings):
 
 
 if __name__ == '__main__':
-  render_check(sys.argv[1], sys.argv[2])
+  render_check(sys.argv[1], sys.argv[2], sys.argv[3])

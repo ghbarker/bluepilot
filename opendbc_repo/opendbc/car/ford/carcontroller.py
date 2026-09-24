@@ -105,6 +105,10 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
       lateral_mode = "stock" if self.disable_BP_lat_UI else self.primary_lateral_control
       mode_changed = lateral_mode != self.bp_lateral_mode_last
       self.bp_lateral_mode_last = lateral_mode
+      # BluePilot: no calibration evidence may span another steering mode.
+      if self.disable_BP_lat_UI or self.primary_lateral_control != PrimaryLateralControl.angle:
+        self.autocal_ctl.idle()
+        self.bp_angle_saturated = False
       # BluePilot: bypass uses current upstream curvature control.
       if self.disable_BP_lat_UI:
         stock_lat_active = CC.latActive and not mode_changed

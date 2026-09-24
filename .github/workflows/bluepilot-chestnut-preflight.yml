@@ -55,6 +55,8 @@ jobs:
             openpilot/sunnypilot/system/tests/test_params_migration.py \
             openpilot/sunnypilot/sunnylink/tests/test_settings_changes.py \
             openpilot/sunnypilot/sunnylink/tests/test_capabilities.py \
+            openpilot/sunnypilot/sunnylink/tests/test_compile_settings_ui.py \
+            openpilot/selfdrive/locationd/test/test_lagd.py \
             openpilot/selfdrive/car/tests/test_cruise_speed.py \
             openpilot/system/hardware/tests/test_fan_controller.py \
             tools/bluepilot_chestnut

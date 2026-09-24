@@ -37,32 +37,14 @@ from numpy import clip, interp
 
 from opendbc.car import DT_CTRL
 from opendbc.car.lateral import apply_std_steer_angle_limits
-from opendbc.car.ford.values import CAR, CarControllerParams
+from opendbc.car.ford.values import CarControllerParams
+from opendbc.sunnypilot.car.ford.angle_autocal import Frame
+from opendbc.sunnypilot.car.ford.angle_autocal_controller import AutoCalController
 from opendbc.sunnypilot.car.ford.lateral_curv_ext import LateralResult
 from opendbc.sunnypilot.car.ford.human_turn import HumanTurnDetector
 from opendbc.sunnypilot.car.ford.lane_center_trim import LaneCenterTrim
-from opendbc.sunnypilot.car.ford.values_ext import BP_ANGLE_LIMITS
+from opendbc.sunnypilot.car.ford.values_ext import BP_ANGLE_LIMITS, platform_gains, V_LOW, V_HIGH, LOW_ANCHOR_BASE
 from openpilot.selfdrive.modeld.constants import ModelConstants
-
-# Hard-coded per-platform gain defaults.
-# CAN vehicles (Escape MK4, Bronco Sport, Explorer, Maverick, Edge)
-_GAIN_CAN         = (1.00, 1.15)
-# CAN-FD body-on-frame trucks (F-150, Lightning, Expedition, Ranger)
-_GAIN_CANFD_BOF   = (0.95, 0.95)
-# CAN-FD unibody SUVs (Mustang Mach-E, Escape MK4.5)
-_GAIN_CANFD_SUV   = (1.00, 1.05)
-
-_CANFD_BOF_CARS = frozenset({
-  CAR.FORD_F_150_MK14,
-  CAR.FORD_F_150_LIGHTNING_MK1,
-  CAR.FORD_EXPEDITION_MK4,
-  CAR.FORD_RANGER_MK2,
-})
-_CANFD_SUV_CARS = frozenset({
-  CAR.FORD_MUSTANG_MACH_E_MK1,
-  CAR.FORD_ESCAPE_MK4_5,
-})
-
 
 # DBC ``LatCtlPath_An_Actl`` (rad) — panda safety uses the same in ``ford.h``; PSCM enforces in firmware.
 FORD_DBC_PATH_ANGLE_MIN = -0.5
@@ -197,16 +179,22 @@ class LateralAngleExt:
     self.angle_stall_blip_active = False
     self.press_timer_s = 0.0          # continuous steeringPressed time, for the hand-off blip
 
+    # BluePilot: continuous auto-calibration of the speed factors. The pure estimator lives
+    # in angle_autocal.py; ALL lifecycle (arm/disarm, JSON persistence, user-edit debounce,
+    # nudge writes, save cadence, errors, telemetry status) lives in AutoCalController —
+    # this class only routes frames and adopts returned nudges.
+    self.autocal_ctl = AutoCalController(dt=_STEER_DT)
+    self._autocal_param_ctr = 100  # >= threshold so the very first call reads params
+    # Telemetry + autocal gate: the command this frame was modified by PSCM authority
+    # limits or the DBC clamp — the car could not make the requested turn.
+    self.bp_angle_saturated = False
+
+
   def update_angle_params(self, params):
     """Sets per-platform gain defaults and reads user angle-tuning params."""
     self._ensure_lateral_curv_initialized(self.CP)
     fp = getattr(self.CP, 'carFingerprint', '')
-    if fp in _CANFD_BOF_CARS:
-      low, high = _GAIN_CANFD_BOF
-    elif fp in _CANFD_SUV_CARS:
-      low, high = _GAIN_CANFD_SUV
-    else:
-      low, high = _GAIN_CAN
+    low, high = platform_gains(fp)
     self.path_angle_gain_lowC_highV = low
     self.path_angle_gain_highC_highV = high
     if params is not None and hasattr(params, "get"):
@@ -246,6 +234,49 @@ class LateralAngleExt:
         except Exception:
           pass
 
+      # BluePilot: auto-calibration arm/disarm (checked ~1 Hz; this method runs at 100 Hz)
+      self._autocal_param_ctr += 1
+      if self._autocal_param_ctr >= 100:
+        self._autocal_param_ctr = 0
+        self.autocal_ctl.poll_params(params, self.low_speed_curv_factor,
+                                     self.high_speed_curv_factor,
+                                     self.path_angle_gain_highC_highV)
+
+  # -- auto-cal telemetry surface (bp_card_publisher reads these off the carcontroller) ----
+  @property
+  def autocal_enabled(self) -> bool:
+    return self.autocal_ctl.enabled
+
+  @property
+  def bp_autocal_status(self) -> str:
+    return self.autocal_ctl.status
+
+  def _feed_autocal(self, CS, kappa_cmd: float, kappa_meas: float):
+    """Build one evidence Frame from the car signals + this frame's limiter flags and hand
+    it to the controller. Frame construction (and its signal reads) happens only while the
+    calibrator is armed — for everyone else this is one attribute check per frame."""
+    if not self.autocal_ctl.enabled:
+      return
+    delay = self.sm['lateralDelay']
+    # BluePilot: an old 'estimated' payload is not readiness. Require the publisher's
+    # valid/alive/frequency checks and completed learning before constructing evidence.
+    if not self.sm.all_checks(['lateralDelay']) or str(delay.status) != "estimated" or delay.calPerc < 100:
+      self.autocal_ctl.pause_for_delay()
+      return
+    ws = CS.out.wheelSpeeds
+    ws_vals = (float(ws.fl), float(ws.fr), float(ws.rl), float(ws.rr))
+    self.autocal_ctl.feed(
+      Frame(v_ego=float(CS.out.vEgoRaw), kappa_cmd=kappa_cmd, kappa_meas=kappa_meas,
+            steering_pressed=bool(CS.out.steeringPressed),
+            angle_rate_limited=self.bp_angle_rate_limited,
+            deviation_limited=self.bp_curvature_deviation_limited,
+            saturated=self.bp_angle_saturated,
+            driver_torque=float(CS.out.steeringTorque), a_ego=float(CS.out.aEgo),
+            ws_spread=max(ws_vals) - min(ws_vals),
+            low_factor=self.low_speed_curv_factor, high_factor=self.high_speed_curv_factor,
+            lateral_delay=float(delay.lateralDelay)),
+      delay_estimated=True)
+
   def update_angle_strategy(self, CC, CS, actuators, CP):
     """
     Curvature from planner (+ optional predicted blend, + lane centering trim) → path_angle via
@@ -272,6 +303,8 @@ class LateralAngleExt:
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
+      self.bp_angle_saturated = False
+      self.autocal_ctl.idle()  # BluePilot: discard evidence spanning an inactive frame
       self.sim_curvature_last = 0.0
       # Publish the shadow curvature from the measured curvature while inactive. LKA keeps
       # carrying angle_mode_engaged whenever angle mode is configured (independent of
@@ -318,6 +351,8 @@ class LateralAngleExt:
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
+      self.bp_angle_saturated = False
+      self.autocal_ctl.idle()  # BluePilot: discard evidence spanning an inactive frame
       self.sim_curvature_last = 0.0
       # Truthful shadow during the override (mirrors the inactive path -- see the comment
       # there): the driver is steering, so the honest command is the car's actual curvature,
@@ -373,6 +408,8 @@ class LateralAngleExt:
       self.bp_angle_rate_limited = False
       self.bp_curvature_rate_limited = False
       self.bp_curvature_deviation_limited = False
+      self.bp_angle_saturated = False
+      self.autocal_ctl.idle()  # BluePilot: discard evidence spanning an inactive frame
       self.sim_curvature_last = 0.0
       # Truthful shadow during the blip (see the inactive-path comment).
       self.bp_kappa_cmd = self.get_current_curvature(CS)
@@ -526,9 +563,9 @@ class LateralAngleExt:
 
     # Speed-interpolated gain: at low speed both curves use 1.0; at high speed the params take effect.
     self.low_gain_calc = interp(
-      v_ego, [13.5, 26.82], [1.0, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
+      v_ego, [V_LOW, V_HIGH], [1.0, (self.path_angle_gain_lowC_highV * self.user_dampening_factor)]
     )
-    self.high_gain_calc = interp(v_ego, [13.5, 26.82], [(1.30 * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)])
+    self.high_gain_calc = interp(v_ego, [V_LOW, V_HIGH], [(LOW_ANCHOR_BASE * self.low_speed_curv_factor), (self.path_angle_gain_highC_highV * self.high_speed_curv_factor)])
 
     # As the curve gets bigger, we will need a little boost to the signal to to not understeer
     self.curvature_factor = interp(abs(kappa_cmd), [0.0007, 0.001], [self.low_gain_calc, self.high_gain_calc])
@@ -556,7 +593,10 @@ class LateralAngleExt:
     elif _pscm_lim >= 1:  # LimitClose (F150/non-angle-mode only): block increases only
       path_angle = float(clip(path_angle, -abs(self.path_angle_last), abs(self.path_angle_last)))
 
+    _pre_dbc_clamp = path_angle
     path_angle = min(FORD_PATH_ANGLE_MAX, max(FORD_PATH_ANGLE_MIN, path_angle))
+    # BluePilot: limited commands cannot identify the free-response gain.
+    self.bp_angle_saturated = bool(_in_hard_sat or _pscm_lim >= 1 or path_angle != _pre_dbc_clamp)
 
     # Soft ROC limit — unconditional, slightly tighter than ford.h, applied before the
     # hardware bypass in ford.h is re-enabled.  Lets us observe whether the limit would
@@ -630,6 +670,9 @@ class LateralAngleExt:
         self.stall_blip_count = 0  # episode over: the car is tracking again or the driver took it
 
     ramp_type = 2
+
+    # BluePilot: observe the actual limited command; factor writes apply on the next param read.
+    self._feed_autocal(CS, kappa_cmd, current_curvature)
 
 
     return LateralResult(
