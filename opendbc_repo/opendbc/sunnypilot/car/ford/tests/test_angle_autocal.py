@@ -608,6 +608,11 @@ class TestAdjustVerify:
     # contradicts the model, so the step must not be trusted.
     _feed_low(pipe, rec, VERIFY_MIN_WEIGHT + 3.0, 1.10, 1.10, ratio_scale=0.85)
     assert pipe.verify_result[0] == "failed"
+    detail = pipe.verify_detail[0]
+    assert detail["from"] == 1.0 and detail["to"] == rec[0]
+    assert detail["result"] == "failed" and detail["weight"] >= VERIFY_MIN_WEIGHT
+    assert abs(1 - detail["after"]) >= abs(1 - detail["before"])
+    assert pipe.ui_state(*rec)["low"]["rollback"]
     assert pipe.verify_hold[0] == VERIFY_FAIL_HOLD_WEIGHT
     # Correct the failed trial, even before another ordinary trial is due.
     rollback = pipe.recommend(*rec)
@@ -646,6 +651,23 @@ class TestAdjustVerify:
     pipe2.from_dict(d)
     assert pipe2.verify[0] == pipe.verify[0]
     assert pipe2.est.recent == pipe.est.recent
+
+  def test_verification_diagnostics_survive_restore_without_affecting_recommendation(self):
+    pipe = _evidenced_pipe()
+    rec = pipe.recommend(1.0, 1.0)
+    _feed_low(pipe, rec, VERIFY_MIN_WEIGHT + 3.0, 1.10, 1.10, ratio_scale=0.85)
+    state = json.loads(json.dumps(pipe.to_dict()))
+    restored = AutoCalPipeline(PLATFORM_GAIN_HIGH)
+    restored.from_dict(state)
+    assert restored.verify_detail == pipe.verify_detail
+    assert restored.ui_state(*rec)["low"]["last"] == pipe.verify_detail[0]
+    # Old saves lack diagnostic records; future/corrupt metadata cannot affect control.
+    for detail in (None, [{"result": "failed", "before": "bad"}, None]):
+      state["verify_detail"] = detail
+      without = AutoCalPipeline(PLATFORM_GAIN_HIGH)
+      without.from_dict(state)
+      assert without.verify_detail == {0: None, 1: None}
+      assert without.recommend(*rec) == restored.recommend(*rec)
 
 
 class TestRecentResponse:

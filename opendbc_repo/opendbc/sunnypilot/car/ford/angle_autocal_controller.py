@@ -57,6 +57,7 @@ class AutoCalController:
     self.done = True            # conservative until params are read
     self.pipeline = None        # AutoCalPipeline while collecting
     self.status = ""            # live ground-truth status, published in telemetry
+    self._pause_reason = "delay"  # BluePilot: display only; never used for admission
     self._params = None
     self._last_written = None   # (low, high) the nudger last wrote; a different param value is a user edit
     self._save_s = 0.0
@@ -145,6 +146,8 @@ class AutoCalController:
         # the adjust-then-verify judgment — from the same ground truth the nudger uses.
         ui = self.pipeline.ui_state(low_factor, high_factor)
         ui["n"] = self.pipeline.est.n
+        if self._pause_reason:
+          ui["pause"] = self._pause_reason
         self.status = json.dumps(ui, separators=(",", ":"))
     except Exception as e:
       self.enabled = False
@@ -167,11 +170,13 @@ class AutoCalController:
 
   def idle(self):
     """Frames where lateral is inactive (disengaged / human turn / stall blip)."""
+    self._pause_reason = "inactive"
     if self.pipeline is not None:
       self.pipeline.idle()
 
   def pause_for_delay(self):
     """Pause collection, writes and lock progress until liveDelay is ready again."""
+    self._pause_reason = "delay"
     if self.pipeline is not None:
       self.pipeline.pause_for_delay()
       self._dirty = True
@@ -192,6 +197,7 @@ class AutoCalController:
       # its command. Do not recommend even a pending rollback until delay is ready.
       self.pause_for_delay()
       return
+    self._pause_reason = ""
     committed = self.pipeline.update(frame)
     if committed:
       self._dirty = True

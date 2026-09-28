@@ -1,0 +1,62 @@
+"""Read-only calibration summaries. Saved evidence must never look like live status."""
+import json
+
+
+def _object(raw: str) -> dict:
+  try:
+    value = json.loads(raw)
+    return value if isinstance(value, dict) else {}
+  except (ValueError, TypeError):
+    return {}
+
+
+def calibration_status_text(enabled: bool, live: str | None, saved: str = "", *, onroad: bool = False) -> str:
+  if not enabled:
+    return "Off"
+  if live is None:
+    if onroad:
+      return "Status unavailable"
+    state = _object(saved)
+    pipe = state.get("pipe", {})
+    if not isinstance(pipe, dict):
+      return "Saved status unavailable"
+    pending = any(isinstance(pipe.get(k), list) and any(pipe[k]) for k in ("verify", "verify_hold", "recovery"))
+    if (state.get("phase") == "locked" and not pending) or saved.startswith("done"):
+      return "Saved: locked"
+    if isinstance(pipe.get("recovery"), list) and any(pipe["recovery"]):
+      return "Saved: rollback pending"
+    if isinstance(pipe.get("verify"), list) and any(pipe["verify"]):
+      return "Saved: adjustment under review"
+    if state.get("phase") == "collecting":
+      return "Saved: collecting"
+    return "Waiting for drive"
+  if live == "locked":
+    return "Locked"
+  if live == "reset":
+    return "Resetting"
+  if live == "off":
+    return "Waiting for controller"
+  if live.startswith("tick error:"):
+    return "Calibration error"
+  state = _object(live)
+  if state.get("pause") == "delay":
+    return "Waiting for steering delay"
+  if state.get("pause") == "inactive":
+    return "Waiting for active steering"
+  low, high = state.get("low"), state.get("high")
+  if not isinstance(low, dict) or not isinstance(high, dict):
+    return "Status unavailable"
+  if any(d.get("rollback") for d in (low, high)):
+    return "Reverting adjustment"
+  phases = [d.get("ph") for d in (low, high)]
+  if any(phase not in ("collect", "propose", "verify", "good") for phase in phases):
+    return "Status unavailable"
+  if "verify" in phases:
+    return "Testing adjustment"
+  if "propose" in phases:
+    return "Checking next adjustment"
+  if phases == ["good", "good"]:
+    return "Response matched; monitoring"
+  if any(d.get("vr") == "failed" for d in (low, high)):
+    return "Collecting after rollback"
+  return "Collecting response data"

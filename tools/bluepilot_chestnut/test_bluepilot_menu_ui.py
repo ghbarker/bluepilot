@@ -1,4 +1,6 @@
 import os
+import json
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -30,6 +32,8 @@ def render_check(params_dir, saved_settings, hardware):
     import pyray as rl
     from openpilot.system.ui.lib.application import gui_app
     from openpilot.system.ui.lib.wifi_manager import WifiManager
+    from openpilot.selfdrive.ui.ui_state import ui_state
+    from openpilot.cereal import messaging
     from openpilot.selfdrive.ui.bp.mici.layouts.settings.bluepilot import (
       BluePilotLayoutMici, VehicleLayoutMici, AudioLayoutMici, VisualsLayoutMici,
       LateralLayoutMici, LongitudinalLayoutMici,
@@ -71,6 +75,37 @@ def render_check(params_dir, saved_settings, hardware):
             # Exercise controls beyond the initially visible scroller viewport.
             render(item, rl.Rectangle(0, 0, item.rect.width, item.rect.height))
           panel.hide_event()
+
+          if isinstance(panel, LateralLayoutMici):
+            params.put_bool('FordAngleAutoCal', True, block=True)
+            params.put('FordAngleAutoCalState', '{"phase":"locked","pipe":{}}', block=True)
+            item = panel.angle_autocal_status
+            sm = ui_state.sm
+            event = messaging.new_message('controllerStateBP', valid=True)
+            for pause, expected in [('delay', 'Waiting for steering delay'), ('inactive', 'Waiting for active steering')]:
+              event.controllerStateBP.bmsAngleAutoCalState = json.dumps({'pause': pause})
+              sm.update_msgs(time.monotonic(), [event.as_reader()])
+              with patch.object(ui_state, 'started', True):
+                item._next_refresh = 0.
+                render(item, rl.Rectangle(0, 0, 402, 180))
+                assert item.value == expected, (item.value, expected)
+                assert not item._touch_valid()
+                if screenshot_dir := os.environ.get('BP_AUTOCAL_SCREENSHOT_DIR'):
+                  screenshot = rl.load_image_from_screen()
+                  try:
+                    assert rl.export_image(screenshot, str(Path(screenshot_dir) / f'autocal-{pause}.png'))
+                  finally:
+                    rl.unload_image(screenshot)
+            with patch.object(ui_state, 'started', True):
+              sm.logMonoTime['controllerStateBP'] = time.monotonic_ns() - 3_000_000_000
+              item._next_refresh = 0.
+              item._update_state()
+              assert item.value == 'Status unavailable'
+            with patch.object(ui_state, 'started', False):
+              item._next_refresh = 0.
+              item._update_state()
+              assert item.value == 'Saved: locked'
+            assert params.get('FordAngleAutoCalState') == '{"phase":"locked","pipe":{}}'
           panel.show_event()
           render(panel, rect)
           panel.hide_event()

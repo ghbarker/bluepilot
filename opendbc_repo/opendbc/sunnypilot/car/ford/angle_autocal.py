@@ -721,6 +721,7 @@ class AutoCalPipeline:
     # against fresh evidence before its anchor may step again. half 0 = low, 1 = high.
     self.verify = {0: None, 1: None}     # {"frm": factor, "to": factor, "pre_r": ratio|None}
     self.verify_result = {0: "", 1: ""}  # last judgment: "confirmed" / "failed" / ""
+    self.verify_detail = {0: None, 1: None}  # BluePilot: diagnostic record only
     self.verify_hold = {0: 0.0, 1: 0.0}  # extra fresh evidence demanded after a failure
     self.recovery = {0: None, 1: None}   # failed step: {"frm": trial value, "to": pre-step value}
     self.step_limit_units = {0: _NUDGE_MAX_UNITS, 1: _NUDGE_MAX_UNITS}
@@ -923,6 +924,14 @@ class AutoCalPipeline:
       pre_r = pend["pre_r"]
       ok = (pre_r is not None and math.isfinite(pre_r) and math.isfinite(r)
             and abs(1.0 - r) < abs(1.0 - pre_r))
+      # BluePilot: preserve the evidence behind a judgment after recent responses
+      # are reset. These fields never participate in recommendations or admission.
+      self.verify_detail[half] = {
+        "from": pend["frm"], "to": pend["to"],
+        "before": round(pre_r, 6) if pre_r is not None and math.isfinite(pre_r) else None,
+        "after": round(r, 6) if math.isfinite(r) else None,
+        "weight": round(w, 3), "result": "confirmed" if ok else "failed",
+      }
       self.verify[half] = None
       if ok:
         self.verify_result[half] = "confirmed"
@@ -1025,6 +1034,7 @@ class AutoCalPipeline:
     self.verify = {0: None, 1: None}
     self.recovery = {0: None, 1: None}
     self.verify_result = {0: "", 1: ""}
+    self.verify_detail = {0: None, 1: None}
     self.verify_hold = {0: VERIFY_FAIL_HOLD_WEIGHT, 1: VERIFY_FAIL_HOLD_WEIGHT}
     self.est.recent = {0: [0.0, 0.0], 1: [0.0, 0.0]}
     self.idle()  # a manual edit invalidates any automatic rollback target
@@ -1057,6 +1067,7 @@ class AutoCalPipeline:
       if self.recovery[half] is not None:
         d["ph"] = "propose"
         d["t"] = self.recovery[half]["to"]
+        d["rollback"] = True
       elif self.verify_hold[half] > 0.0:
         d["ph"] = "collect"
         d["need"] = max(NUDGE_MIN_WEIGHT, self.verify_hold[half])
@@ -1076,6 +1087,8 @@ class AutoCalPipeline:
         d["ph"] = "collect"
       if self.verify_result[half]:
         d["vr"] = self.verify_result[half]
+      if self.verify_detail[half] is not None:
+        d["last"] = dict(self.verify_detail[half])
       out[name] = d
     return out
 
@@ -1091,6 +1104,7 @@ class AutoCalPipeline:
       "rej": dict(self.quality.counters),
       "verify": [self.verify[0], self.verify[1]],
       "verify_result": [self.verify_result[0], self.verify_result[1]],
+      "verify_detail": [self.verify_detail[0], self.verify_detail[1]],
       "verify_hold": [self.verify_hold[0], self.verify_hold[1]],
       "recovery": [self.recovery[0], self.recovery[1]],
       "step_limit_units": [self.step_limit_units[0], self.step_limit_units[1]],
@@ -1114,6 +1128,14 @@ class AutoCalPipeline:
     if isinstance(vr, list) and len(vr) == 2:
       for h in (0, 1):
         self.verify_result[h] = str(vr[h] or "")
+    details = d.get("verify_detail")
+    if isinstance(details, list) and len(details) == 2:
+      for h, detail in enumerate(details):
+        if not isinstance(detail, dict) or detail.get("result") not in ("confirmed", "failed"):
+          continue
+        keys = ("from", "to", "before", "after", "weight")
+        if all(detail.get(k) is None or (isinstance(detail[k], (int, float)) and -1e6 <= detail[k] <= 1e6) for k in keys):
+          self.verify_detail[h] = {k: detail.get(k) for k in (*keys, "result")}
     vh = d.get("verify_hold")
     if isinstance(vh, list) and len(vh) == 2:
       for h in (0, 1):

@@ -1,12 +1,42 @@
 """BluePilot MICI: Lateral tuning panel — control variable, factors, lane change, offset, mode display."""
 
 from collections.abc import Callable
+import time
 
+from openpilot.selfdrive.ui.bp.angle_autocal_status import calibration_status_text
 from openpilot.selfdrive.ui.bp.mici.widgets.button_bp import BigButtonBP, BigParamControlBP
 from openpilot.selfdrive.ui.bp.mici.widgets.floatbutton import BigParamFloatControl, BigParamIntControl
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.widgets.scroller import NavScroller
 from opendbc.sunnypilot.car.ford.lateral_curv_ext import PrimaryLateralControl
+
+
+class _AutoCalStatusButton(BigButtonBP):
+  """BluePilot: read-only status in settings, with no onroad arc caption."""
+
+  def __init__(self):
+    super().__init__("Calibration Status", value="Waiting for drive", value_size=28)
+    self.set_touch_valid_callback(lambda: False)
+    self._next_refresh = 0.
+
+  def _update_state(self):
+    now = time.monotonic()
+    if now < self._next_refresh:
+      return
+    self._next_refresh = now + 1.
+    sm = ui_state.sm
+    live = None
+    # Offroad controller messages can retain the previous drive's status.
+    if ui_state.started and sm.valid.get("controllerStateBP", False) and sm.alive.get("controllerStateBP", False):
+      age = time.monotonic_ns() - sm.logMonoTime["controllerStateBP"]
+      if 0 <= age <= 2_000_000_000:
+        live = sm["controllerStateBP"].bmsAngleAutoCalState
+    text = calibration_status_text(
+      ui_state.params.get_bool("FordAngleAutoCal"), live,
+      ui_state.params.get("FordAngleAutoCalState", return_default=True) or "",
+      onroad=ui_state.started)
+    if self.value != text:
+      self.set_value(text)
 
 
 class _EraseAutoCalButton(BigButtonBP):
@@ -50,6 +80,7 @@ class LateralLayoutMici(NavScroller):
       "Auto-Calibrate Factors", "FordAngleAutoCal",
       toggle_callback=self._on_autocal_toggled,
     )
+    self.angle_autocal_status = _AutoCalStatusButton()
     # Full retry: wipes evidence AND puts both factors back to 1.00 (the toggle above
     # only clears the lock; it leaves the factors wherever the calibrator walked them).
     self.angle_autocal_erase = _EraseAutoCalButton()
@@ -118,6 +149,7 @@ class LateralLayoutMici(NavScroller):
       self.high_speed_factor,
       self.high_speed_dampening,
       self.angle_autocal,
+      self.angle_autocal_status,
       self.angle_autocal_lock,
       self.angle_autocal_erase,
       self.lane_change_factor_high_ang,
@@ -175,6 +207,7 @@ class LateralLayoutMici(NavScroller):
     self.high_speed_factor.set_visible(is_angle)
     self.high_speed_dampening.set_visible(is_angle)
     self.angle_autocal.set_visible(is_angle)
+    self.angle_autocal_status.set_visible(is_angle)
     self.angle_autocal_lock.set_visible(is_angle)
     self.angle_autocal_erase.set_visible(is_angle)
     self.lane_change_factor_high_ang.set_visible(is_angle)

@@ -1,5 +1,6 @@
 """SP-specific calibration integration: preserved steering and current native APIs."""
 import math
+import json
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -175,3 +176,22 @@ def test_remote_disable_clears_finished_lock_without_a_ui_callback(tmp_path):
   ctl.poll_params(params, 1.1, 1.05, PLATFORM_GAIN_HIGH)
   assert ctl.enabled and not ctl.done and ctl.pipeline.est.n == 0
   assert ctl._last_written == (1.1, 1.05)
+
+
+def test_live_status_reports_pause_without_changing_applied_factors(tmp_path):
+  params = Params(str(tmp_path / 'params'))
+  params.put_bool("FordAngleAutoCal", True, block=True)
+  ctl = AutoCalController(DT)
+  ctl.poll_params(params, 1., 1., PLATFORM_GAIN_HIGH)
+  assert json.loads(ctl.status)["pause"] == "delay"
+  ctl.feed(_frame(10., .004, .004), delay_estimated=False)
+  ctl.poll_params(params, 1., 1., PLATFORM_GAIN_HIGH)
+  assert json.loads(ctl.status)["pause"] == "delay"
+  ctl.feed(_frame(10., .004, .004), delay_estimated=True)
+  ctl.poll_params(params, 1., 1., PLATFORM_GAIN_HIGH)
+  assert "pause" not in json.loads(ctl.status)
+  ctl.idle()
+  ctl.poll_params(params, 1., 1., PLATFORM_GAIN_HIGH)
+  assert json.loads(ctl.status)["pause"] == "inactive"
+  assert params.get("FordLowSpeedFactor_ang", return_default=True) == 1.
+  assert params.get("FordHighSpeedFactor_ang", return_default=True) == 1.

@@ -53,8 +53,7 @@ if COMMA_HARDWARE:
     void main() {
       vec4 color = texture(texture0, fragTexCoord);
       if (engaged == 1) {
-        float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));  // Luma
-        color.rgb = mix(vec3(gray), color.rgb, 0.2);  // 20% saturation
+        // BluePilot: retain road-camera color while engaged.
         color.rgb = clamp((color.rgb - 0.5) * 1.2 + 0.5, 0.0, 1.0);  // +20% contrast
         color.rgb = pow(color.rgb, vec3(1.0/1.28));
         fragColor = vec4(color.rgb, color.a);
@@ -85,8 +84,7 @@ else:
       vec2 uv = texture(texture1, fragTexCoord).ra - 0.5;
       vec3 rgb = vec3(y + 1.402*uv.y, y - 0.344*uv.x - 0.714*uv.y, y + 1.772*uv.x);
       if (engaged == 1) {
-        float gray = dot(rgb, vec3(0.299, 0.587, 0.114));
-        rgb = mix(vec3(gray), rgb, 0.2);  // 20% saturation
+        // BluePilot: retain road-camera color while engaged.
         rgb = clamp((rgb - 0.5) * 1.2 + 0.5, 0.0, 1.0);  // +20% contrast
       } else {
         rgb *= 0.85;  // 85% opacity
