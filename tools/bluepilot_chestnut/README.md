@@ -360,6 +360,29 @@ summary logs only; its observed recovery/restart sequence informs the regression
 tests, but is not a full-rate replay or proof that the initial chime was spurious.
 This change has not been installed or verified on the vehicle.
 
+### Recovery before the initial tone completes, 2026-09-28
+
+The captured 17:37:26 EDT warning confirmed recovery at 17:37:27.564, then
+returned to "Take Control" for about 0.3 seconds without a new warning event.
+Recovery had occurred before the one-second sound-delivery minimum, so the
+existing sound-silenced latch had not yet preserved it.
+
+The presentation now remembers confirmed recovery immediately. It retains the
+past-warning wording and stops requesting sound when the existing delivery
+minimum ends. The initial 0.3-second recovery qualification, warning trigger,
+minimum sound delivery, visual lifetime, HUD signal, commands and safety limits
+are unchanged. A new event, Ford limit, driver override, fault, or unverifiable
+control cancels recovery immediately, including before the initial tone finishes.
+
+The previous helper reproduces all 201 recorded text/sound frames using
+timestamp-ordered input messages. With the fix, this replay removes the 30-frame
+urgent-wording reversal and requests silence 0.083 seconds earlier. It does not
+remove the initial warning or fix the vehicle's underlying tracking lag. A compact
+fixture retains only the presentation inputs and relative timing, with no device
+identifier or location. Tests also cover interruption and rearming before and
+after the sound minimum. Replay receipt timing is approximate; source tests do
+not establish vehicle sound delivery or road performance.
+
 ### Device startup corrections, 2026-09-19
 
 A comma four/Mach-E installation exposed two migration defects. The BP menu used

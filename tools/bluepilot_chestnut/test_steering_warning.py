@@ -1,5 +1,7 @@
 """Recorded Ford warning cases: preserve requests, distinguish live trouble from a retained alert."""
 import copy
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -218,19 +220,22 @@ def test_recovered_warning_does_not_restart_sound_without_a_new_warning(mici, fl
   assert alert.__dict__ == original
 
 
+@pytest.mark.parametrize('recovered_at_frame', [40, 140])
 @pytest.mark.parametrize('condition', [
   'event', 'near_limit', 'limit', 'driver_limit', 'fault', 'permanent', 'driver', 'invalid_can',
   'car_stale', 'model_stale', 'controls_stale', 'control_stale', 'feedback_stale', 'feedback_invalid',
   'feedback_missing', 'feedback_future', 'ramp_out', 'inactive', 'low_speed', 'nan', 'opposite_response',
 ])
-def test_recovered_warning_rearms_for_new_warning_or_unverifiable_control(condition):
+def test_recovered_warning_rearms_for_new_warning_or_unverifiable_control(condition, recovered_at_frame):
   car, sm = inputs()
   recover(sm)
   presenter, alert = FordSteeringAlert(), warning()
-  for frame in range(140):
+  for frame in range(recovered_at_frame):
     shown = step(presenter, alert, car, sm, frame)
-  assert shown.audible_alert == log.SelfdriveState.AudibleAlert.none
-  now = NOW + 140 * 10_000_000
+  assert shown.alert_text_1 == 'Steering Alert'
+  expected_sound = log.SelfdriveState.AudibleAlert.none if recovered_at_frame >= 100 else alert.audible_alert
+  assert shown.audible_alert == expected_sound
+  now = NOW + recovered_at_frame * 10_000_000
   sm.refresh(now)
   timestamp = now
   feedback = sm['carStateBP'].fordSteeringLimit
@@ -265,9 +270,70 @@ def test_recovered_warning_rearms_for_new_warning_or_unverifiable_control(condit
     sm['controlsState'].lateralControlState.angleState.steeringAngleDesiredDeg = float('nan')
   elif condition == 'opposite_response':
     sm['controlsState'].curvature = 0.005
-  shown = step(presenter, alert, car, sm, 140, event_active=condition == 'event', refresh=False, car_timestamp=timestamp)
+  shown = step(presenter, alert, car, sm, recovered_at_frame, event_active=condition == 'event', refresh=False, car_timestamp=timestamp)
   assert shown.audible_alert == alert.audible_alert
   assert shown.alert_text_1 == 'Take Control'
+
+
+@pytest.mark.parametrize('mici', [False, True])
+@pytest.mark.parametrize('fluctuation', ['angle_error', 'saturation_timer', 'undershooting'])
+def test_recovery_before_sound_minimum_is_retained_without_a_new_warning(mici, fluctuation):
+  # 2026-09-28 17:37:26 EDT: recovery was confirmed before the one-second
+  # sound minimum, then a threshold fluctuation revived the urgent caption.
+  car, sm = inputs()
+  presenter, alert = FordSteeringAlert(mici), warning()
+  for frame in range(120):
+    if frame == 45:
+      recover(sm)
+    if frame == 76:
+      angle = sm['controlsState'].lateralControlState.angleState
+      if fluctuation == 'angle_error':
+        angle.steeringAngleDesiredDeg = -2.57
+      elif fluctuation == 'saturation_timer':
+        angle.saturated = True
+      else:
+        sm['controlsState'].curvature = -0.001
+    shown = step(presenter, alert, car, sm, frame, event_active=frame < 15)
+    if frame < 74:
+      assert shown.alert_text_1.lower() == 'take control'
+    else:
+      assert shown.alert_text_1.lower() == 'steering alert'
+      assert shown.alert_text_2.lower() == 'check steering response'
+    expected_sound = alert.audible_alert if frame < 100 else log.SelfdriveState.AudibleAlert.none
+    assert shown.audible_alert == expected_sound
+
+
+def test_recorded_september_28_recovery_does_not_revert_to_urgent_wording():
+  trace = json.loads((Path(__file__).parent / 'fixtures/ford_warning_recovery_20260928.json').read_text())
+  car, sm = inputs()
+  presenter, alert = FordSteeringAlert(mici=True), warning()
+  recorded_recovered = False
+  for frame, values in enumerate(trace['rows']):
+    row = dict(zip(trace['columns'], values, strict=True))
+    now = NOW + row['time_ns']
+    car.vEgo, car.canValid, car.steeringPressed = row['speed'], row['can_valid'], row['pressed']
+    car.steerFaultTemporary, car.steerFaultPermanent = row['temp_fault'], row['perm_fault']
+    angle = sm['controlsState'].lateralControlState.angleState
+    angle.active, angle.saturated = row['active'], row['saturated']
+    angle.steeringAngleDeg, angle.steeringAngleDesiredDeg = row['angle'], row['desired_angle']
+    sm['controlsState'].curvature = row['curvature']
+    sm['carControl'].latActive = row['lat_active']
+    sm['modelV2'].action.desiredCurvature = row['desired_curvature']
+    feedback = sm['carStateBP'].fordSteeringLimit
+    feedback.dataAvailable = row['feedback_available']
+    feedback.controlStatus, feedback.status = row['control_status'], row['limit']
+    feedback.sourceMonoTime = now - row['feedback_age_ns']
+    sm.valid = dict(zip(trace['services'], row['valid'], strict=True))
+    sm.logMonoTime = dict(zip(trace['services'], (now - age for age in row['age_ns']), strict=True))
+    request = sm['carControl'].as_reader().as_builder().to_bytes()
+    shown = presenter.update(alert, row['event'], frame, now, car, now - row['car_age_ns'], sm)
+    recorded_recovered |= row['text'] == 'steering alert'
+    assert shown.alert_text_1 == ('steering alert' if recorded_recovered else row['text'])
+    assert shown.audible_alert == (alert.audible_alert if frame < 100 else log.SelfdriveState.AudibleAlert.none)
+    assert shown.duration == alert.duration
+    assert shown.visual_alert == alert.visual_alert
+    assert sm['carControl'].as_reader().as_builder().to_bytes() == request
+  assert recorded_recovered
 
 
 def test_rearmed_warning_preserves_initial_sound_delivery_time():
@@ -282,20 +348,23 @@ def test_rearmed_warning_preserves_initial_sound_delivery_time():
   assert step(presenter, alert, car, sm, 240).audible_alert == log.SelfdriveState.AudibleAlert.none
 
 
+@pytest.mark.parametrize('recovered_at_frame', [40, 140])
 @pytest.mark.parametrize('interruption', ['empty', 'critical', 'frame_gap'])
-def test_recovered_sound_latch_does_not_leak_into_another_alert(interruption):
+def test_recovered_sound_latch_does_not_leak_into_another_alert(interruption, recovered_at_frame):
   car, sm = inputs()
   recover(sm)
   presenter, alert = FordSteeringAlert(), warning()
-  for frame in range(140):
+  for frame in range(recovered_at_frame):
     step(presenter, alert, car, sm, frame)
   if interruption == 'empty':
-    assert step(presenter, EmptyAlert, car, sm, 140) is EmptyAlert
+    assert step(presenter, EmptyAlert, car, sm, recovered_at_frame) is EmptyAlert
   elif interruption == 'critical':
     critical = ImmediateDisableAlert('Steering Assist Temporarily Unavailable')
     critical.alert_type = 'steerTempUnavailable/immediateDisable'
-    assert step(presenter, critical, car, sm, 140) is critical
-  assert step(presenter, alert, car, sm, 141).audible_alert == alert.audible_alert
+    assert step(presenter, critical, car, sm, recovered_at_frame) is critical
+  shown = step(presenter, alert, car, sm, recovered_at_frame + 1)
+  assert shown.audible_alert == alert.audible_alert
+  assert shown.alert_text_1 == 'Take Control'
 
 
 def test_good_requests_do_not_create_alerts_and_critical_alerts_are_untouched():

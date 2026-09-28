@@ -22,18 +22,21 @@ class FordSteeringAlert:
     self.first_frame = None
     self.last_frame = None
     self.recovery_frames = 0
+    self.recovery_confirmed = False
     self.sound_silenced = False
 
   def update(self, alert, event_active, frame, now_ns, CS, car_state_timestamp, sm):
     if alert.alert_type != "steerSaturated/warning":
       self.first_frame = self.last_frame = None
       self.recovery_frames = 0
+      self.recovery_confirmed = False
       self.sound_silenced = False
       return alert
 
     if self.last_frame is None or frame != self.last_frame + 1:
       self.first_frame = frame
       self.recovery_frames = 0
+      self.recovery_confirmed = False
       self.sound_silenced = False
     self.last_frame = frame
 
@@ -84,12 +87,17 @@ class FordSteeringAlert:
       # the existing alert immediately. A restarted tone gets its delivery window.
       if self.sound_silenced:
         self.first_frame = frame
+      self.recovery_confirmed = False
       self.sound_silenced = False
     if self.recovery_frames >= RECOVERY_FRAMES:
-      if frame - self.first_frame >= MIN_SOUND_FRAMES:
-        self.sound_silenced = True
+      # Remember qualified recovery even while the initial tone is still owed.
+      # Otherwise a threshold fluctuation can revive "Take Control" without a
+      # new event and unnecessarily restart the recovery wait before silencing.
+      self.recovery_confirmed = True
+    if self.recovery_confirmed and frame - self.first_frame >= MIN_SOUND_FRAMES:
+      self.sound_silenced = True
 
-    if self.recovery_frames >= RECOVERY_FRAMES or self.sound_silenced:
+    if self.recovery_confirmed:
       # Retain the original visual lifetime, but describe a past warning rather
       # than an ongoing limit. This deliberately does not say "safe" or "all clear".
       displayed.alert_text_1 = "Steering Alert"
