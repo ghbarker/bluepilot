@@ -107,8 +107,14 @@ class CheckUpdateButton(BigButton):
     self._signal_updater(self.CHECK_FOR_UPDATE)
 
   def _signal_updater(self, sig: str):
+    # BluePilot: a disabled updater exits without publishing a status.
+    if ui_state.params.get_bool("DisableUpdates"):
+      self._show_updates_disabled()
+      return
+    # End BluePilot
     self.set_enabled(False)
     self._state = UpdaterState.WAITING_FOR_UPDATER
+    self._waiting_for_updater_t = rl.get_time()
     self._hide_value_t = None
     self.set_value("")
     self.set_icon(self._txt_update_icon)
@@ -117,6 +123,17 @@ class CheckUpdateButton(BigButton):
       subprocess.run(f"pkill -{sig} -f {self.UPDATER_PROC}", shell=True)
 
     threading.Thread(target=run, daemon=True).start()
+
+  # BluePilot: do not offer an update check that cannot run.
+  def _show_updates_disabled(self):
+    self._state = UpdaterState.IDLE
+    self._waiting_for_updater_t = None
+    self._hide_value_t = None
+    self.set_rotate_icon(False)
+    self.set_icon(self._txt_update_icon)
+    self.set_value("updates disabled")
+    self.set_enabled(False)
+  # End BluePilot
 
   def set_value(self, value: str):
     super().set_value(value)
@@ -132,13 +149,22 @@ class CheckUpdateButton(BigButton):
       self.set_enabled(False)
       return
 
+    # BluePilot: distinguish disabled updates from a slow or absent updater.
+    if ui_state.params.get_bool("DisableUpdates"):
+      self._show_updates_disabled()
+      return
+    if self._state == UpdaterState.IDLE and self.get_value() == "updates disabled":
+      self.set_value("")
+      self.set_enabled(True)
+    # End BluePilot
+
     updater_state = ui_state.params.get("UpdaterState") or ""
     failed_count = ui_state.params.get("UpdateFailedCount") or 0
     failed = int(failed_count) > 0
 
     if self._state == UpdaterState.WAITING_FOR_UPDATER:
       self.set_rotate_icon(True)
-      if updater_state != "idle":
+      if updater_state and updater_state != "idle":
         self._state = UpdaterState.UPDATER_RESPONDING
 
       # Recover from updater not responding (time invalid shortly after boot)
@@ -152,7 +178,11 @@ class CheckUpdateButton(BigButton):
         self._hide_value_t = rl.get_time()
 
     elif self._state == UpdaterState.UPDATER_RESPONDING:
-      if updater_state == "idle":
+      # BluePilot: status disappearing must also retain a bounded wait.
+      if not updater_state:
+        self._state = UpdaterState.WAITING_FOR_UPDATER
+        self._waiting_for_updater_t = rl.get_time()
+      elif updater_state == "idle":
         self.set_rotate_icon(False)
         self._state = UpdaterState.IDLE
         self._hide_value_t = rl.get_time()
