@@ -80,6 +80,9 @@ What it's doing underneath:
 - Evidence **survives ignition cycles** — progress is saved every 30 seconds and picked
   up on the next drive. Each restart still requires fresh response evidence. A trial
   that was not verified before restart returns to its prior value when delay is ready.
+  Before changing a factor, the controller saves and reads back its recovery record.
+  A failed save prevents the factor write. Partial writes retain verification, and
+  manual edits cancel the old trial, including edits made while the device was off.
 - If liveDelay resumes learning or becomes unhealthy, collection and automatic factor
   changes pause, pending samples and recent responses are cleared, and the completion
   timer restarts. Current factors and the prior fit are retained. Once delay is ready,

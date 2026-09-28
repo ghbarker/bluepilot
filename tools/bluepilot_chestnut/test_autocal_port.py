@@ -128,7 +128,7 @@ def test_current_params_float_writes_and_serialized_telemetry(tmp_path):
   ctl.pipeline = _evidenced_pipe()
   ctl.feed(_frame(10., .004, .004 / 1.1), delay_estimated=True)
   assert params.get("FordLowSpeedFactor_ang") == 1.05
-  assert params.get("FordHighSpeedFactor_ang") == 1.
+  assert params.get("FordHighSpeedFactor_ang", return_default=True) == 1.
   assert params.get("FordAngleAutoCalError", return_default=True) == ""
   ctl.poll_params(params, 1.05, 1., PLATFORM_GAIN_HIGH)
   cc = SimpleNamespace(lateralUncertainty=0., autocal_enabled=ctl.enabled,

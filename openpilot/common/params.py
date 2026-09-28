@@ -173,10 +173,19 @@ class Params:
     """Write a parameter. block=True waits until it is persisted to disk."""
     k = self.check_key(key)
     value = self._put_cast(k, dat)
-    params_put(self.p, k, value, len(value), block)
+    # BluePilot: native disk failures return an error code without a C++ exception.
+    result = params_put(self.p, k, value, len(value), block)
+    if result != 0:
+      raise OSError(f"Parameter write failed for {k.decode('utf-8', errors='replace')}: {result}")
+    # End BluePilot
 
   def put_bool(self, key, val, block=False):
-    params_put_bool(self.p, self.check_key(key), val, block)
+    # BluePilot: propagate blocking write failures, including failed directory fsync.
+    k = self.check_key(key)
+    result = params_put_bool(self.p, k, val, block)
+    if result != 0:
+      raise OSError(f"Parameter write failed for {k.decode('utf-8', errors='replace')}: {result}")
+    # End BluePilot
 
   def remove(self, key):
     params_remove(self.p, self.check_key(key))

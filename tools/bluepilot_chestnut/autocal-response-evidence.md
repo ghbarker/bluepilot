@@ -52,3 +52,33 @@ started its first 0.05 low-speed trial at 243.35 seconds. Those are noiseless
 synthetic observations, not a route replay or a prediction of an individual's
 calibration time. Device installation, live calibration behavior, and the reported
 lane-crossing issue require separate vehicle evidence.
+
+## Persistence fault handling
+
+The controller checkpoints the pending trial or recovery before changing a factor.
+It requires a successful blocking save and an exact readback, then reads back each
+factor write. All state writes are ordered and blocking so an older asynchronous
+checkpoint cannot overwrite the recovery record. The pre-write record's `applied`
+field describes the observed old pair; the pipeline's `frm`/`to` records protect
+recovery until a later checkpoint records the newly observed values.
+
+Each successful partial write updates the controller's own-write record. A later
+failure cannot masquerade as a driver edit and discard verification. Observed
+manual changes between a frame, checkpoint, and factor writes cancel the trial;
+the same applies to an external edit present at restart. This is read-before-write
+detection, not an atomic transaction with another process editing the same key.
+
+The Python Params wrapper now raises on nonzero native write return codes,
+including failures after rename such as directory fsync. Successful calls retain
+their API behavior. Errors occurring later in native asynchronous writes still
+cannot be reported to their original caller.
+
+Fault tests cover failed or dropped checkpoints, failed/partial factor writes,
+process death after either factor is persisted, manual edits, and disable during
+a checkpoint. Native Params tests cover error codes and a simulated failure after
+the state file became readable. Readback alone would miss that durability failure.
+
+Unchanged factors are no longer rewritten, so a normal one-anchor trial needs one
+checkpoint and one factor write. The 30-second evidence checkpoint is now blocking;
+device filesystem latency and control-loop timing still require on-device
+validation. Host tests do not establish real-time performance or road behavior.

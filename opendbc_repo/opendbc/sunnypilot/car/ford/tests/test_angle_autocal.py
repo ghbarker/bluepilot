@@ -817,6 +817,8 @@ class _MockParams:
     self.written = {}
 
   def get(self, key, return_default=False):
+    if return_default and key in ('FordLowSpeedFactor_ang', 'FordHighSpeedFactor_ang'):
+      return self.values.get(key, 1.)
     return self.values.get(key)
 
   def get_bool(self, key):
@@ -915,7 +917,8 @@ class TestOnboardGlue:
     assert p.written["FordLowSpeedFactor_ang"] == 1.02 and isinstance(p.written["FordLowSpeedFactor_ang"], float)
     assert p.written["FordHighSpeedFactor_ang"] == 1.15 and isinstance(p.written["FordHighSpeedFactor_ang"], float)
     st = json.loads(p.written["FordAngleAutoCalState"])
-    assert st["phase"] == "collecting" and st["applied"] == {"low": 1.02, "high": 1.15}
+    # The checkpoint precedes the factor write; applied is the observed old pair.
+    assert st["phase"] == "collecting" and st["applied"] == {"low": 1.0, "high": 1.0}
     # The blocking write landed, so it must NOT read back as a user edit. Point the strategy
     # at the written values (the single reader) and tick: no soft-reset, evidence untouched.
     p.values["FordLowSpeedFactor_ang"] = 1.02

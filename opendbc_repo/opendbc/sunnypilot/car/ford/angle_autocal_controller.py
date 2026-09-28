@@ -19,6 +19,7 @@ from opendbc.sunnypilot.car.ford.angle_autocal import AutoCalPipeline, Frame
 SAVE_PERIOD_S = 30.0
 EDIT_TOL = 0.005    # half the menu granularity (0.01): a factor moved further than this
                     # without the nudger writing it is a driver hand-edit
+FACTOR_KEYS = ('FordLowSpeedFactor_ang', 'FordHighSpeedFactor_ang')
 
 
 def _state_locked(state: str) -> bool:
@@ -75,7 +76,7 @@ class AutoCalController:
         # back to neutral so the car steers stock immediately and collection restarts.
         # Idempotent with the UI's own param clears; covers non-UI writers too.
         params.put_bool("FordAngleAutoCalReset", False)
-        params.put("FordAngleAutoCalState", "")
+        params.put("FordAngleAutoCalState", "", True)
         params.put("FordAngleAutoCalError", "")
         params.put("FordLowSpeedFactor_ang", 1.0)
         params.put("FordHighSpeedFactor_ang", 1.0)
@@ -113,6 +114,13 @@ class AutoCalController:
         # the currently applied factors.
         self.pipeline = AutoCalPipeline(platform_gain_high, dt=self.dt)
         _restore(self.pipeline, state)
+        # A manual edit made while stopped is already present at our first poll.
+        # It must cancel an old trial/recovery, not wait forever for its old target.
+        for half, current in enumerate((low_factor, high_factor)):
+          pending = self.pipeline.recovery[half] or self.pipeline.verify[half]
+          if pending is not None and not any(abs(current - pending[key]) < 1e-6 for key in ('frm', 'to')):
+            self.pipeline.user_edit()
+            break
         self.pipeline.lock_enabled = lock_on
         if not lock_on and self.pipeline.locked:
           self.pipeline.locked = False  # resuming a previously locked calibration
@@ -124,8 +132,8 @@ class AutoCalController:
         self.pipeline = None
       else:
         # User hand-edit: a factor param differs from what the nudger last wrote. The
-        # nudger's own writes are blocking (_apply_nudge), so by the time we read here
-        # they always match _last_written — any mismatch is the driver. Adopt their value
+        # nudger records each blocking write separately, including partial failures.
+        # A mismatch with that record is a driver edit. Adopt their value
         # (already live in the strategy) and soft-reset confidence; evidence is not wiped.
         lw = self._last_written
         moved = lw is not None and (abs(low_factor - lw[0]) > EDIT_TOL
@@ -212,8 +220,10 @@ class AutoCalController:
       self._dirty = True
     applied = (frame.low_factor, frame.high_factor)
     rec = self.pipeline.recommend(frame.low_factor, frame.high_factor)
-    if rec is not None and self._apply_nudge(rec):
+    if rec is not None and self._apply_nudge(rec, applied):
       applied = rec
+    if self.pipeline is None:
+      return  # disable was observed while the checkpoint was being written
     if self.pipeline.locked:
       self._save("locked", applied)
       self.done = True
@@ -225,22 +235,74 @@ class AutoCalController:
         self._save("collecting", applied)
 
   # -- params I/O --------------------------------------------------------------------------
-  def _apply_nudge(self, rec) -> bool:
-    """Write a nudged factor pair to the params, blocking so the write has landed before
-    the next poll reads it (that read/write ordering is what keeps a nudge from looking
-    like a user edit — no timing guess). Returns True on success. The factor params are
-    typed FLOAT; a write error is parked in FordAngleAutoCalError rather than swallowed."""
-    low_new, high_new = rec
-    if self._params is None:
+  def _read_factors(self):
+    values = tuple(float(self._params.get(key, return_default=True)) for key in FACTOR_KEYS)
+    if not all(math.isfinite(value) for value in values):
+      raise ValueError('nonfinite adjustment factor')
+    return values
+
+  def _apply_nudge(self, rec, applied=None) -> bool:
+    """Save the pending trial/recovery before any factor changes, then read back writes.
+
+    Each observed write owns its value even if a later write fails. A crash after
+    either factor lands can restore the saved bounded rollback. The normal strategy
+    reader still has to observe the factors before responses can verify a trial.
+    """
+    if self._params is None or self.pipeline is None:
       return False
+    if not self._params.get_bool('FordAngleAutoCal'):
+      self._disarm(self._params)
+      return False
+    before = self._last_written if applied is None else applied
     try:
-      self._params.put("FordLowSpeedFactor_ang", float(low_new), True)
-      self._params.put("FordHighSpeedFactor_ang", float(high_new), True)
+      actual = self._read_factors()
+      if before is None or any(abs(a - b) > 1e-6 for a, b in zip(actual, before, strict=True)):
+        self.pipeline.user_edit()
+        self._last_written = actual
+        self._dirty = True
+        return False  # the driver changed a factor after this frame was constructed
+      self._last_written = actual
+      # All state checkpoints are blocking: an older queued save must not overwrite
+      # this write-ahead record after the corresponding factor has already changed.
+      if not self._save('collecting', actual):
+        return False
+      for half, key in enumerate(FACTOR_KEYS):
+        if not self._params.get_bool('FordAngleAutoCal'):
+          self._disarm(self._params)
+          return False
+        observed = self._read_factors()
+        if any(abs(a - b) > 1e-6 for a, b in zip(observed, self._last_written, strict=True)):
+          self.pipeline.user_edit()
+          self._last_written = observed
+          self._dirty = True
+          return False  # a manual edit arrived during the checkpoint or previous write
+        if float(rec[half]) == actual[half]:
+          continue
+        self._params.put(key, float(rec[half]), True)
+        observed = self._read_factors()
+        if abs(observed[half] - rec[half]) > 1e-6:
+          raise OSError(f'{key} write did not read back')
+        written = list(self._last_written)
+        written[half] = observed[half]
+        self._last_written = tuple(written)
     except Exception as e:
+      # Some failures are reported after a rename. Account only for old/intended
+      # values; unexpected values remain visible as manual edits at the next poll.
+      try:
+        observed = self._read_factors()
+        written = list(self._last_written or before)
+        for half in (0, 1):
+          if any(abs(observed[half] - value) < 1e-6 for value in (before[half], rec[half])):
+            written[half] = observed[half]
+        self._last_written = tuple(written)
+      except Exception:
+        pass
+      self._dirty = True
       self._error(f"nudge write failed: {type(e).__name__}: {e}")
       return False
-    self._last_written = (float(low_new), float(high_new))
-    self._save("collecting", rec)
+    # The pre-write record already protects restart recovery. The periodic
+    # checkpoint will record the observed new pair; avoid another disk sync here.
+    self._dirty = True
     return True
 
   def _error(self, msg: str):
@@ -253,10 +315,9 @@ class AutoCalController:
       pass
 
   def _save(self, phase: str, applied):
-    """Serialize the pipeline into FordAngleAutoCalState (JSON). Async put is fine:
-    a lost final write costs at most SAVE_PERIOD_S of evidence."""
+    """Ordered checkpoint; return whether a blocking save also read back correctly."""
     if self._params is None or self.pipeline is None:
-      return
+      return False
     d = {
       "v": 1,
       "phase": phase,
@@ -271,9 +332,17 @@ class AutoCalController:
       d["stderr"] = {"low": round(st["stderr_eff_low"], 3), "high": round(st["stderr_eff_high"], 3)}
       d["stable_s"] = round(self.pipeline.stable_s, 1)
     try:
-      self._params.put("FordAngleAutoCalState", json.dumps(d, separators=(",", ":")))
+      state = json.dumps(d, separators=(",", ":"), allow_nan=False)
+      self._params.put("FordAngleAutoCalState", state, True)
+      stored = self._params.get('FordAngleAutoCalState', return_default=True)
+      if isinstance(stored, bytes):
+        stored = stored.decode('utf-8')
+      if stored != state:
+        raise OSError('calibration state write did not read back')
     except Exception as e:
+      self._dirty = True
       self._error(f"state save failed: {type(e).__name__}: {e}")
-      return
+      return False
     self._save_s = 0.0
     self._dirty = False
+    return True

@@ -128,13 +128,16 @@ def test_ready_learning_ready_requires_fresh_curves_before_next_trial():
     if "FordLowSpeedFactor_ang" in params.written:
       break
   assert params.written["FordLowSpeedFactor_ang"] == 1.05
-  assert params.written["FordHighSpeedFactor_ang"] == 1.  # no fresh high-speed evidence
+  assert 'FordHighSpeedFactor_ang' not in params.written  # unchanged factors are not rewritten
+  assert params.get('FordHighSpeedFactor_ang', return_default=True) == 1.
 
 
 def test_pre_pause_responses_cannot_verify_pending_trial():
   ctl, params = controller(_evidenced_pipe())
   pipe = ctl.pipeline
   rec = pipe.recommend(1., 1.)
+  assert ctl._apply_nudge(rec)
+  params.written.clear()
   pipe.est.recent[0] = [10., 10.]  # enough to confirm if reused
   ctl.feed(_frame(10., .004, .004, low=rec[0], high=rec[1]), delay_estimated=False)
   assert pipe.verify_result[0] == 'expired' and not params.written
@@ -148,6 +151,8 @@ def test_pending_rollback_is_frozen_while_delay_learns():
   ctl, params = controller(_evidenced_pipe())
   pipe = ctl.pipeline
   rec = pipe.recommend(1., 1.)
+  assert ctl._apply_nudge(rec)
+  params.written.clear()
   fail_trial(pipe, rec)
   for _ in range(100):
     ctl.feed(_frame(10., .004, .004, low=rec[0], high=rec[1]), delay_estimated=False)
