@@ -82,8 +82,14 @@ def render_check(params_dir, saved_settings, hardware):
             item = panel.angle_autocal_status
             sm = ui_state.sm
             event = messaging.new_message('controllerStateBP', valid=True)
-            for pause, expected in [('delay', 'Waiting for steering delay'), ('inactive', 'Waiting for active steering')]:
-              event.controllerStateBP.bmsAngleAutoCalState = json.dumps({'pause': pause})
+            statuses = [('delay', {'pause': 'delay'}, 'Waiting for steering delay'),
+                        ('inactive', {'pause': 'inactive'}, 'Waiting for active steering'),
+                        ('evidence', {'active': 'high', 'low': {'ph': 'good'},
+                                      'high': {'ph': 'collect', 'reason': 'fit_evidence'}}, 'High-speed: more turn data needed'),
+                        ('matching', {'low': {'ph': 'verify', 'reason': 'matching_turns'},
+                                      'high': {'ph': 'collect'}}, 'Testing: matching turns needed')]
+            for label, payload, expected in statuses:
+              event.controllerStateBP.bmsAngleAutoCalState = json.dumps(payload)
               sm.update_msgs(time.monotonic(), [event.as_reader()])
               with patch.object(ui_state, 'started', True):
                 item._next_refresh = 0.
@@ -93,7 +99,7 @@ def render_check(params_dir, saved_settings, hardware):
                 if screenshot_dir := os.environ.get('BP_AUTOCAL_SCREENSHOT_DIR'):
                   screenshot = rl.load_image_from_screen()
                   try:
-                    assert rl.export_image(screenshot, str(Path(screenshot_dir) / f'autocal-{pause}.png'))
+                    assert rl.export_image(screenshot, str(Path(screenshot_dir) / f'autocal-{label}.png'))
                   finally:
                     rl.unload_image(screenshot)
             with patch.object(ui_state, 'started', True):

@@ -63,23 +63,34 @@ What it's doing underneath:
   tracking — the moments when the car is swinging wide or catching itself back are the
   loop's dynamics, not the car's gain, and they are refused outright. A step takes as
   many curve passes as calm data requires; a slower right answer beats a faster wrong one.
-- **Every adjustment is checked before that factor advances again.** After a step, the calibrator
+- Qualified response data accumulates across clean turns within a ten-minute window,
+  instead of continuously decaying while the next turn is awaited. The long-term
+  fit keeps its existing confidence requirements. Normal adjustments start in the
+  speed range currently being observed.
+- **Every adjustment is checked before either factor advances again.** After a step, the calibrator
   collects a fresh batch of clean curves *at the new value* and confirms the step
   actually brought the car **closer to doing exactly what's asked** (the measured
-  response strictly nearer 100% of requested than before). Confirmed → it keeps going.
+  response strictly nearer 100% of requested than before), using comparable speed
+  ranges and turn directions. Confirmed → it keeps going.
   Contradicted → it returns that factor to its measured pre-step value, with a correction
   no larger than 0.05. It discards the contradicted fit and collects new evidence at both
   speed anchors before trying again. Failed trials reduce that factor's next maximum
   step: 0.05 → 0.02 → 0.01. Being close to 100% does not excuse making the response worse.
   A rollback can occur before the normal 20-second trial interval expires.
 - Evidence **survives ignition cycles** — progress is saved every 30 seconds and picked
-  up on the next drive. Each restart still requires fresh response evidence.
+  up on the next drive. Each restart still requires fresh response evidence. A trial
+  that was not verified before restart returns to its prior value when delay is ready.
 - If liveDelay resumes learning or becomes unhealthy, collection and automatic factor
   changes pause, pending samples and recent responses are cleared, and the completion
   timer restarts. Current factors and the prior fit are retained. Once delay is ready,
   clean curve evidence must be collected again before a new trial or completion;
-  a pending trial still needs fresh verification. A previously determined rollback
-  waits for readiness too.
+  an unfinished trial returns to its prior value first. A previously determined
+  rollback waits for readiness too. A trial whose baseline becomes older than ten
+  minutes also returns to its prior value instead of accepting a stale comparison.
+
+The comma four's **Calibration Status** card explains whether calibration is waiting
+for steering delay, active steering, more turn data, a consistent response, or
+matching turns to verify an adjustment. It also identifies a pending rollback.
 
 ## Watching it live from your phone
 

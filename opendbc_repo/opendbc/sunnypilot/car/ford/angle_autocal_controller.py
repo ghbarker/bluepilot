@@ -12,6 +12,7 @@ in-memory adopt path is needed.
 """
 import json
 import math
+import time
 
 from opendbc.sunnypilot.car.ford.angle_autocal import AutoCalPipeline, Frame
 
@@ -58,6 +59,7 @@ class AutoCalController:
     self.pipeline = None        # AutoCalPipeline while collecting
     self.status = ""            # live ground-truth status, published in telemetry
     self._pause_reason = "delay"  # BluePilot: display only; never used for admission
+    self._last_response_time = None
     self._params = None
     self._last_written = None   # (low, high) the nudger last wrote; a different param value is a user edit
     self._save_s = 0.0
@@ -172,11 +174,18 @@ class AutoCalController:
     """Frames where lateral is inactive (disengaged / human turn / stall blip)."""
     self._pause_reason = "inactive"
     if self.pipeline is not None:
-      self.pipeline.idle()
+      self.pipeline.idle(elapsed_s=self._response_elapsed())
+
+  def _response_elapsed(self):
+    now = time.monotonic()
+    elapsed = self.dt if self._last_response_time is None else max(0.0, now - self._last_response_time)
+    self._last_response_time = now
+    return elapsed
 
   def pause_for_delay(self):
     """Pause collection, writes and lock progress until liveDelay is ready again."""
     self._pause_reason = "delay"
+    self._last_response_time = None
     if self.pipeline is not None:
       self.pipeline.pause_for_delay()
       self._dirty = True
@@ -198,7 +207,7 @@ class AutoCalController:
       self.pause_for_delay()
       return
     self._pause_reason = ""
-    committed = self.pipeline.update(frame)
+    committed = self.pipeline.update(frame, elapsed_s=self._response_elapsed())
     if committed:
       self._dirty = True
     applied = (frame.low_factor, frame.high_factor)

@@ -399,6 +399,9 @@ def _evidenced_pipe(true_low=1.10, true_high=1.10, applied=(1.0, 1.0), weight_s=
     pipe._hist.clear()  # speed-block boundary: never align against the other block's cmd
     for _ in range(n):
       pipe.update(_frame(v, kappa, kappa * r, low=applied[0], high=applied[1]))
+  # A balanced offline fixture has no current driving band. Production update()
+  # selects the live band before recommendations; separate tests exercise that.
+  pipe._active_half = None
   return pipe
 
 
@@ -456,6 +459,8 @@ class TestFactorNudger:
     # advance active time
     for _ in range(int(NUDGE_PERIOD_S / DT) + 1):
       pipe.update(_frame(10.0, 0.004, 0.004, low=rec[0], high=rec[1]))
+    assert pipe.recommend(*rec) is None  # the other factor in this pair is still unverified
+    _feed_low(pipe, rec, 12., 1.10, 1.10, v=28., kappa=.002)
     assert pipe.recommend(*rec) is not None
 
   def test_insufficient_evidence_no_nudge(self):
@@ -466,12 +471,12 @@ class TestFactorNudger:
     # 2026-07-22 design decision: no per-drive movement cap. A car that is genuinely
     # 40% off must be allowed to walk all the way in one drive, as long as every step
     # keeps verifying against fresh evidence (the plant here always agrees).
-    pipe = self._evidenced_pipe(true_low=1.40, true_high=1.40)
+    pipe = self._evidenced_pipe(true_low=1.40, true_high=1.0)
     applied = [1.0, 1.0]
     for _ in range(30):
       for _f in range(int(NUDGE_PERIOD_S / DT) + 1):
         g = applied_gain(10.0, *applied)
-        r = g / ideal_gain(10.0, 1.40, 1.40)
+        r = g / ideal_gain(10.0, 1.40, 1.0)
         pipe.update(_frame(10.0, 0.004, 0.004 * r, low=applied[0], high=applied[1]))
       rec = pipe.recommend(*applied)
       if rec is not None:
@@ -598,6 +603,8 @@ class TestAdjustVerify:
     _feed_low(pipe, rec, VERIFY_MIN_WEIGHT + 3.0, 1.40, 1.40)
     assert pipe.verify[0] is None
     assert pipe.verify_result[0] == "confirmed"
+    assert pipe.recommend(*rec) is None  # do not change a coupled factor mid-verification
+    _feed_low(pipe, rec, 12., 1.40, 1.40, v=28., kappa=.002)
     assert pipe.recommend(*rec) is not None
 
   def test_failed_verify_rolls_back_before_requalification(self):
@@ -626,6 +633,7 @@ class TestAdjustVerify:
     # at 0.02 instead of repeating the 0.05 trial that made the response worse.
     feed_plant(pipe.est, 1.10, 1.10, [10, 28], applied_low=rollback[0],
                applied_high=rollback[1], n_per_speed=400)
+    _feed_low(pipe, rollback, 3., 1.10, 1.10)
     assert pipe.recommend(*rollback)[0] == 1.02
 
   def test_lock_disabled_never_freezes(self):
@@ -992,7 +1000,8 @@ class TestOnboardGlue:
     self._tick(ext, p, n=1)
     st = json.loads(ext.autocal_ctl.status)  # dashboards parse this
     assert st["low"]["ph"] == "collect" and st["high"]["f"] == 1.0
-    assert st["low"]["need"] == max(NUDGE_MIN_WEIGHT, VERIFY_FAIL_HOLD_WEIGHT)
+    assert st["low"]["need"] == NUDGE_MIN_WEIGHT
+    assert st["low"]["qneed"] == VERIFY_FAIL_HOLD_WEIGHT
 
   def test_toggle_off_disarms(self):
     ext = self._ext()

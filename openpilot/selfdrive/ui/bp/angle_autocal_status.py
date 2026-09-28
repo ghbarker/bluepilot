@@ -52,11 +52,33 @@ def calibration_status_text(enabled: bool, live: str | None, saved: str = "", *,
   if any(phase not in ("collect", "propose", "verify", "good") for phase in phases):
     return "Status unavailable"
   if "verify" in phases:
+    if any(d.get("ph") == "verify" and d.get("reason") == "matching_turns" for d in (low, high)):
+      return "Testing: matching turns needed"
+    if any(d.get("ph") == "verify" and d.get("reason") == "response_consistency" for d in (low, high)):
+      return "Testing: response inconsistent"
     return "Testing adjustment"
   if "propose" in phases:
     return "Checking next adjustment"
   if phases == ["good", "good"]:
+    if any(d.get("reason") == "lock_evidence" for d in (low, high)):
+      return "Factors matched; confirming"
     return "Response matched; monitoring"
-  if any(d.get("vr") == "failed" for d in (low, high)):
+  focus = state.get("active")
+  choices = [("low", low), ("high", high)]
+  if focus == "high":
+    choices.reverse()
+  reasons = {
+    "fit_evidence": "more turn data needed",
+    "fit_confidence": "response inconsistent",
+    "fresh_evidence": "collecting clean turns",
+    "response_consistency": "response inconsistent",
+    "speed_range": "waiting for speed range",
+    "clean_frame": "waiting for clean data",
+    "settling": "waiting between trials",
+  }
+  for name, detail in choices:
+    if reason := reasons.get(detail.get("reason")):
+      return f"{name.capitalize()}-speed: {reason}"
+  if any(d.get("vr") in ("failed", "expired") for d in (low, high)):
     return "Collecting after rollback"
   return "Collecting response data"

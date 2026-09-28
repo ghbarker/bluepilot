@@ -135,12 +135,13 @@ def test_pre_pause_responses_cannot_verify_pending_trial():
   ctl, params = controller(_evidenced_pipe())
   pipe = ctl.pipeline
   rec = pipe.recommend(1., 1.)
-  pending = dict(pipe.verify[0])
   pipe.est.recent[0] = [10., 10.]  # enough to confirm if reused
   ctl.feed(_frame(10., .004, .004, low=rec[0], high=rec[1]), delay_estimated=False)
+  assert pipe.verify_result[0] == 'expired' and not params.written
   ctl.feed(_frame(10., .004, .004, low=rec[0], high=rec[1]), delay_estimated=True)
-  assert pipe.verify[0] == pending and pipe.verify_result[0] == ""
-  assert pipe.est.recent_response(0)[0] == 0. and not params.written
+  assert pipe.verify[0] is None and pipe.verify_result[0] == 'expired'
+  assert pipe.est.responses.response(0)[0] == 0.
+  assert params.written['FordLowSpeedFactor_ang'] == 1.
 
 
 def test_pending_rollback_is_frozen_while_delay_learns():

@@ -36,6 +36,28 @@ def test_trial_recovery_and_confirmed_response_are_distinct():
   assert calibration_status_text(True, status(low={"ph": "good"}, high={"ph": "good"})) == "Response matched; monitoring"
 
 
+@pytest.mark.parametrize('reason,expected', [
+  ('fit_evidence', 'High-speed: more turn data needed'),
+  ('fit_confidence', 'High-speed: response inconsistent'),
+  ('fresh_evidence', 'High-speed: collecting clean turns'),
+  ('clean_frame', 'High-speed: waiting for clean data'),
+  ('speed_range', 'High-speed: waiting for speed range'),
+  ('settling', 'High-speed: waiting between trials'),
+])
+def test_actual_active_band_blocker_is_explained(reason, expected):
+  raw = status(active='high', low={'ph': 'collect', 'reason': 'fit_evidence'},
+               high={'ph': 'collect', 'reason': reason})
+  assert calibration_status_text(True, raw) == expected
+
+
+@pytest.mark.parametrize('reason,expected', [
+  ('matching_turns', 'Testing: matching turns needed'),
+  ('response_consistency', 'Testing: response inconsistent'),
+])
+def test_trial_blocker_is_explained(reason, expected):
+  assert calibration_status_text(True, status(low={'ph': 'verify', 'reason': reason})) == expected
+
+
 @pytest.mark.parametrize("raw", ["", "not json", "null", "[]", '{"low":null,"high":[]}', '{"low":{},"high":{}}', "{}"])
 def test_unusable_live_payload_is_not_collection(raw):
   assert calibration_status_text(True, raw, onroad=True) == "Status unavailable"

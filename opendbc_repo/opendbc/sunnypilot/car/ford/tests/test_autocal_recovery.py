@@ -10,13 +10,14 @@ from opendbc.sunnypilot.car.ford.angle_autocal import (
 )
 from opendbc.sunnypilot.car.ford.angle_autocal_controller import AutoCalController
 from opendbc.sunnypilot.car.ford.tests.test_angle_autocal import (
-  DT, PLATFORM_GAIN_HIGH, _MockParams, _evidenced_pipe, _frame, feed_plant,
+  DT, PLATFORM_GAIN_HIGH, _MockParams, _evidenced_pipe, _feed_low, _frame, feed_plant,
 )
 
 
 def fail_trial(pipe, rec, ratio=1.3, half=0):
   # Isolate the decision seam with clean post-trial response sufficient statistics.
-  pipe.est.recent[half] = [VERIFY_MIN_WEIGHT + 0.1, (VERIFY_MIN_WEIGHT + 0.1) * ratio]
+  key = int(next(iter(pipe.verify[half]['baseline']['bins'])))
+  pipe.est.responses.add(half, key, VERIFY_MIN_WEIGHT + .1, ratio)
   pipe._judge_verifies()
   assert pipe.verify_result[half] == "failed"
 
@@ -101,6 +102,7 @@ def test_retry_is_smaller_and_requires_new_fit_and_response_evidence():
   pipe.since_nudge_s = NUDGE_PERIOD_S
   assert pipe.recommend(*undo) is None
   feed_plant(pipe.est, 1.15, 1.15, [10, 28], applied_low=undo[0], applied_high=undo[1], n_per_speed=300)
+  _feed_low(pipe, undo, 3., 1.15, 1.15)
   retry = pipe.recommend(*undo)
   assert retry[0] == 1.02
   fail_trial(pipe, retry, ratio=1.5)
@@ -109,19 +111,21 @@ def test_retry_is_smaller_and_requires_new_fit_and_response_evidence():
   pipe.update(_frame(10., .004, .004, low=undo2[0], high=undo2[1]))
   pipe.since_nudge_s = NUDGE_PERIOD_S
   feed_plant(pipe.est, 1.15, 1.15, [10, 28], applied_low=undo2[0], applied_high=undo2[1], n_per_speed=300)
+  _feed_low(pipe, undo2, 3., 1.15, 1.15)
   assert pipe.recommend(*undo2)[0] == 1.01
 
 
 def test_cannot_lock_after_five_minutes_without_post_trial_evidence():
   pipe = AutoCalPipeline(PLATFORM_GAIN_HIGH)
   feed_plant(pipe.est, 1.06, 1.06, [10, 28], n_per_speed=2400)
+  _feed_low(pipe, (1., 1.), 3., 1.06, 1.06)
   rec = pipe.recommend(1., 1.)
-  assert rec == (1.04, 1.04)
+  assert rec == (1.04, 1.)
   for _ in range(int((LOCK_STABLE_S + 1.) / DT)):
     pipe.update(_frame(20., 0., 0., low=rec[0], high=rec[1]))
     assert pipe.recommend(*rec) is None
   assert not pipe.locked and pipe.stable_s == 0.
-  assert all(pipe.verify.values())
+  assert pipe.verify[0] is not None
 
 
 def test_recovery_and_smaller_step_survive_restart():
@@ -130,7 +134,7 @@ def test_recovery_and_smaller_step_survive_restart():
   fail_trial(pipe, rec)
   restored = AutoCalPipeline(PLATFORM_GAIN_HIGH)
   restored.from_dict(json.loads(json.dumps(pipe.to_dict())))
-  assert restored.recommend(*rec) == (1., rec[1])
+  assert restored.recommend(*rec) == (1., 1.)  # the other unfinished trial expires at restart
   assert restored.step_limit_units[0] == 2
 
 
@@ -153,7 +157,8 @@ def test_controller_restores_old_lock_with_pending_verification_as_unfinished():
   ctl = AutoCalController(DT)
   ctl.poll_params(params, *rec, PLATFORM_GAIN_HIGH)
   assert ctl.enabled and ctl.pipeline is not None and not ctl.pipeline.locked
-  assert ctl.pipeline.verify[0] is not None
+  assert ctl.pipeline.recovery[0] is not None
+  assert ctl.pipeline.verify_result[0] == 'expired'
 
 
 def test_controller_writes_rollback_and_does_not_resume_stale_fit():
@@ -187,13 +192,18 @@ def test_controller_write_failure_cannot_verify_unapplied_values(delay_ready):
   before = ctl.pipeline.est.n
   for _ in range(1000):
     ctl.feed(_frame(10., .004, .004), delay_estimated=delay_ready)
-  assert ctl.pipeline.est.n == before and ctl.pipeline.verify[0] is not None
+  assert ctl.pipeline.est.n == before
+  if delay_ready:
+    assert ctl.pipeline.verify[0] is not None
+  else:
+    assert ctl.pipeline.recovery[0] is not None
   assert "write failed" in params.values["FordAngleAutoCalError"]
 
 
 def test_fresh_baseline_required_before_trial():
   pipe = _evidenced_pipe(true_low=1.3, true_high=1.3)
   pipe.est.recent = {0: [0., 0.], 1: [0., 0.]}
+  pipe.est.responses.clear()
   assert pipe.recommend(1., 1.) is None
 
 
@@ -206,7 +216,6 @@ def test_stale_fit_overshoot_recovers_in_closed_loop():
   factors = (1., 1.)
   history = deque([1.] * 5, maxlen=5)
   rollback_seen = False
-  smaller_retry_seen = False
   for i in range(24000):
     v = 12. if (i // 400) % 2 == 0 else 28.
     history.append(factors[0] if v == 12. else factors[1])
@@ -221,15 +230,15 @@ def test_stale_fit_overshoot_recovers_in_closed_loop():
           rollback_seen = True
         elif rec[h] != factors[h] and pipe.step_limit_units[h] < 5:
           assert abs(rec[h] - factors[h]) <= .02 + 1e-9
-          smaller_retry_seen = True
       factors = rec
-  assert rollback_seen and smaller_retry_seen
+  assert rollback_seen  # correct fresh response may need no further trial after recovery
   assert all(abs(f - 1.) <= .01 + 1e-9 for f in factors), factors
   assert pipe.locked and not any(pipe.verify.values()) and not any(pipe.recovery.values())
 
 
 def test_restart_after_rollback_write_observes_recovery_before_learning():
   pipe = _evidenced_pipe(true_low=1.3, true_high=1.3)
+  pipe._active_half = 0  # production only starts a trial in the current speed range
   rec = pipe.recommend(1., 1.)
   fail_trial(pipe, rec)
   rollback = pipe.recommend(*rec)
