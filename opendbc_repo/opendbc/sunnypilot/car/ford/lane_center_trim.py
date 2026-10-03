@@ -28,11 +28,17 @@ correction" baseline) vs. ``path_offset_lanelines`` (the geometric lane center),
 laneline confidence score. The *target* we correct toward is that same blend here, so:
 
 - Good lane lines (confidence -> 1): target -> lane-line center + offset (full centering + bias).
-- No/poor lane lines (confidence -> 0): target -> the model's own current path + offset, i.e. the
-  correction reduces to *just* the user's left/right bias riding on top of whatever the model
-  already wants to do -- it never goes to zero just because lane lines dropped out. This is the
-  case that matters on center-stripe-only roads with a curbed edge: there's no reliable lane line
-  to center between, but the user's bias should still nudge the car off the curb.
+- No/poor lane lines (confidence -> 0): target -> the model's own current path + offset, subject
+  to the independent boundary checks below. A missing opposite lane line must not discard a
+  credible near-side line or road edge and allow the user's bias to push toward it.
+
+**Boundary-limited trim**: each credible lane line or road edge independently limits the added
+correction, using model-path clearance over the near/lookahead interval. The clearance envelope
+includes nominal vehicle half-width, a margin and positional uncertainty. This only attenuates
+the optional trim; it neither overrides the planner nor creates an evasive steering command when
+the model path is already outside the envelope. Existing trim unwinds at the existing slew limit.
+It is not collision avoidance or a guarantee of physical clearance: the model, vehicle response
+and downstream steering limits still determine the actual trajectory.
 
 Confidence uses the exact formula and breakpoints ``lateral_curv_ext.py`` already uses for
 ``laneline_confidence`` / ``min_laneline_confidence_bp`` (smooth width-tolerance + laneline probs,
@@ -79,6 +85,14 @@ _SMOOTH_TAU_S = 0.4
 # typical confidence-transition jump (a fraction of that) resolves proportionally faster.
 _CORRECTION_ROC_PER_TICK = 0.00015
 
+# Nominal half-width plus margin, matching the 1.08 m envelope already used by LDW and RELC.
+# This is a conservative trim constraint, not a measured per-vehicle collision footprint.
+_VEHICLE_HALF_WIDTH_AND_MARGIN_M = 1.08
+_BOUNDARY_MIN_PROB = 0.8
+_BOUNDARY_MAX_STD_M = 0.3
+_BOUNDARY_NEAR_M = 2.0
+_BOUNDARY_SAMPLES = 6
+
 
 class LaneCenterTrim:
   def __init__(self):
@@ -92,8 +106,8 @@ class LaneCenterTrim:
     """Returns ``kappa_cmd``, nudged toward (lane-blend target + ``offset``) when active.
 
     ``offset`` (m): positive shifts the target right, negative left (same sign convention as
-    curvature mode's ``custom_path_offset_curv``). Applied whether or not lane lines are usable
-    -- see module docstring.
+    curvature mode's ``custom_path_offset_curv``). Applied even without a lane-center estimate,
+    but constrained by any independently credible boundary -- see module docstring.
     ``gain`` (0.0-1.0): user-tunable authority -- how much of the (already magnitude-clipped)
     raw correction is actually applied. 0 disables the trim's effect without disabling detection.
 
@@ -106,11 +120,12 @@ class LaneCenterTrim:
       self.reset()
       return kappa_cmd
 
-    speed_factor = float(interp(v_ego, _SPEED_RAMP_BP, _SPEED_RAMP_V))
-    if speed_factor <= 0.0:
+    if not (np.isfinite(v_ego) and np.isfinite(offset) and np.isfinite(gain)):
       self.reset()
       return kappa_cmd
-    if not (np.isfinite(offset) and np.isfinite(gain)): #stops not a number from getting to steering command; validation of number
+
+    speed_factor = float(interp(v_ego, _SPEED_RAMP_BP, _SPEED_RAMP_V))
+    if speed_factor <= 0.0:
       self.reset()
       return kappa_cmd
 
@@ -159,7 +174,58 @@ class LaneCenterTrim:
 
     error = (target_y + offset) - model_y
     raw = 2.0 * error / (lookahead ** 2)
-    return True, float(raw)
+    lower, upper = self._boundary_correction_limits(model, pos_x, pos_y, lookahead)
+    return True, float(np.clip(raw, lower, upper))
+
+  def _boundary_correction_limits(self, model, pos_x, pos_y, lookahead: float) -> tuple[float, float]:
+    """Limit only added trim: zero always remains feasible, including in a too-narrow lane.
+
+    Use the same small-curvature geometry as the trim (delta_y = 0.5 * delta_kappa * x**2).
+    Check multiple distances so a safe-looking endpoint cannot hide a close boundary earlier
+    in a curve. Only interpolate inside both curves' support; never extrapolate a road edge.
+    """
+    lower, upper = -_MAX_RAW_CORRECTION, _MAX_RAW_CORRECTION
+    start = max(_BOUNDARY_NEAR_M, float(pos_x[0]))
+    end = min(lookahead, float(pos_x[-1]))
+    if end < start:
+      return lower, upper
+    samples = np.linspace(start, end, _BOUNDARY_SAMPLES)
+    baseline = np.interp(samples, pos_x, pos_y)
+    # Convert normal-to-path clearance into y clearance at the same x on curves.
+    slope = np.interp(samples, pos_x, np.gradient(pos_y, pos_x))
+    normal_scale = np.hypot(1.0, slope)
+
+    for curve_name, std_name, indices in (("laneLines", "laneLineStds", (1, 2)),
+                                          ("roadEdges", "roadEdgeStds", (0, 1))):
+      for side, index in enumerate(indices):
+        try:
+          curve = getattr(model, curve_name)[index]
+          std = float(getattr(model, std_name)[index])
+          if not np.isfinite(std) or not 0.0 <= std <= _BOUNDARY_MAX_STD_M:
+            continue
+          if curve_name == "laneLines":
+            prob = float(model.laneLineProbs[index])
+            if not np.isfinite(prob) or not _BOUNDARY_MIN_PROB <= prob <= 1.0:
+              continue
+          boundary_x = np.asarray(curve.x, dtype=float)
+          boundary_y = np.asarray(curve.y, dtype=float)
+          if (boundary_x.ndim != 1 or boundary_y.ndim != 1 or boundary_x.size < 2 or
+              boundary_x.size != boundary_y.size or not np.isfinite(boundary_x).all() or
+              not np.isfinite(boundary_y).all() or not np.all(np.diff(boundary_x) > 0)):
+            continue
+          covered = (samples >= boundary_x[0]) & (samples <= boundary_x[-1])
+          if not covered.any():
+            continue
+          boundary = np.interp(samples[covered], boundary_x, boundary_y)
+          clearance = (_VEHICLE_HALF_WIDTH_AND_MARGIN_M + std) * normal_scale[covered]
+          limit = 2.0 * (boundary + (clearance if side == 0 else -clearance) - baseline[covered]) / samples[covered] ** 2
+          if side == 0:
+            lower = max(lower, min(0.0, float(np.max(limit))))
+          else:
+            upper = min(upper, max(0.0, float(np.min(limit))))
+        except (AttributeError, IndexError, TypeError, ValueError):
+          continue
+    return lower, upper
 
   def _laneline_blend(self, model, lookahead: float) -> tuple[float, float]:
     """Returns (scale, laneline_center_y). scale=0 whenever lanelines can't be trusted (missing,
@@ -170,6 +236,9 @@ class LaneCenterTrim:
       probs = model.laneLineProbs
       stds = model.laneLineStds # a line could exist but this verifies how sure it is of where it is
       if len(lane_lines) < 3 or len(probs) < 3 or len(stds) < 3:
+        return 0.0, 0.0
+      if not all(np.isfinite(probs[i]) and 0.0 <= probs[i] <= 1.0 and
+                 np.isfinite(stds[i]) and stds[i] >= 0.0 for i in (1, 2)):
         return 0.0, 0.0
 
       left_x = np.asarray(lane_lines[1].x, dtype=float)

@@ -576,6 +576,18 @@ struct ControllerStateBP @0xcd96dafb67a082d0 {
   bmsAngleAutoCalibrate @55 :Bool;  # FordAngleAutoCal toggle state
   bmsAngleAutoCalState @56 :Text;  # live controller status (bp_autocal_status): "off"/"locked"/"reset" or armed JSON
   angleSaturated @57 :Bool;  # angle mode: PSCM authority limit or DBC clamp modified this frame's command
+  fordSteeringCommand @58 :FordSteeringCommand;
+
+  struct FordSteeringCommand {
+    dataAvailable @0 :Bool;
+    pathAngle @1 :Float32;  # radians: signed, quantized final LMC/LMC2 wire value (not steering wheel angle)
+    curvature @2 :Float32;  # 1/m: signed, quantized final LMC/LMC2 wire value
+    mode @3 :UInt8;  # raw LatCtl_D_Rq/LatCtl_D2_Rq; 0 = inactive
+    canFd @4 :Bool;
+    frame @5 :UInt64;  # controller frame when packet was constructed, retained between sends
+    sourceMonoTime @6 :UInt64;  # same controller tick, not republishing time
+    # A queued transmit request, not confirmation of Panda/EPS acceptance.
+  }
 }
 
 struct CarStateBP @0xb057204d7deadf3f {
@@ -583,6 +595,15 @@ struct CarStateBP @0xb057204d7deadf3f {
   hybridBattery @1 :HybridBattery;
   brakeLightStatus @2 :BrakeLightStatus;
   fordSteeringLimit @3 :FordSteeringLimit;
+  fordEps @4 :FordEps;
+
+  struct FordEps {
+    dataAvailable @0 :Bool;  # fresh CAN, valid parser and documented signal values
+    estimatedCurrentAmps @1 :Float32;  # SteMdule_I_Est: filtered module current for BMS, NOT motor torque
+    voltage @2 :Float32;  # SteMdule_U_Meas, volts
+    moduleStatus @3 :UInt8;  # SteMdule_D_Stat, raw documented status (0..6)
+    sourceMonoTime @4 :UInt64;  # actual EPAS_INFO CAN reception timestamp
+  }
 
   # Display/logging only. Default/missing data must never mean spare capacity.
   struct FordSteeringLimit {

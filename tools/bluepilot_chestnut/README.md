@@ -137,12 +137,99 @@ reported speed squared. The final Python adapter can increase the donor's result
 to track measured curvature: in a synthetic 25 m/s CAN FD case it changed
 0.00385824 to 0.00435824 1/m. The older nominal cap is therefore not a final bound.
 
-One inherited behavior remains unqualified: after a 0.6-second driver steering
-press in a synthetic 25 m/s curve (curvature 0.003 1/m), the proactive stall blip
-produced six inactive frames, or 300 ms, followed by a ramp from zero. Its
-path-angle threshold does not establish straight driving. The behavior is
-unchanged; the vehicle's response and the reset's benefit require recorded-route,
-bench, and controlled vehicle evidence before fleet release.
+The September review also identified an unqualified automatic reset: after a
+0.6-second driver steering press in a synthetic 25 m/s curve (curvature 0.003 1/m),
+the proactive stall blip produced six inactive frames, or 300 ms, followed by a
+ramp from zero. Its path-angle threshold did not establish straight driving.
+The initial October draft removed automatic recovery entirely. The merge scope
+instead preserves the baseline recovery mechanism and narrows its reactive
+trigger, because removal also discards the reported post-override recovery.
+
+### Driving-control corrections, 2026-10-03
+
+- Preserve the caller's acceleration request and existing brake slew limit.
+  The donor extension read the legacy lead `status` instead of current `present`,
+  could replace a no-lead brake request with zero, and applied an additional
+  0.1 m/s³ brake limiter. Healthy radar can now only add the existing gas caps;
+  absent/invalid/dead radar preserves the upstream request. Brake/precharge
+  hysteresis retains state, with the donor thresholds unchanged.
+- Preserve the baseline proactive/reactive recovery and driver-requested
+  human-turn override. Adapt upstream [PR #148](https://github.com/BluePilotDev/bluepilot/pull/148)
+  so the reactive detector also requires measured curvature below 65% of demand.
+  This narrows an absolute-gap trigger that can mistake curve-entry lag for a
+  stall. It does not change proactive hand-off pulses, prove recovery, or remove
+  every steering interruption. All command/safety limits remain unchanged.
+  The existing small-path-angle guard does not establish straight driving;
+  upstream acknowledged unwanted unwinding in curves in
+  [PR #176](https://github.com/BluePilotDev/bluepilot/pull/176). Fresh applied-command
+  diagnostics and vehicle qualification are still required for a redesigned
+  hand-off state machine. Tracking warnings remain active.
+- Preserve planner curvature when the optional model prediction is unavailable,
+  unhealthy, nonfinite or the wrong length. Previously an absent prediction was
+  blended as zero, halving the request at the default 0.5 blend. Cached unhealthy
+  model data also no longer supplies lane-change scaling or lane trim.
+- Bound optional lane trim against independently credible left/right lane lines
+  and road edges. A missing opposite line no longer discards the near boundary.
+  This only attenuates added trim, with the existing smoothing/rate limits; it
+  cannot repair an already-outside planner trajectory or guarantee clearance.
+- Distinguish Ford-reported near-limit, limit, driver-active limit and tracking
+  lag in alert wording. The detector, takeover cue, sound and escalation remain.
+  A phase-aligned detector using the final limited command still needs telemetry
+  and replay validation; this is not a claim that all false alerts are fixed.
+
+Local validation: 41 lane-trim tests and 18 isolated longitudinal tests passed.
+On Windows, source-level harnesses additionally passed 22 angle-control tests
+and 118 presenter cases using explicit test doubles for unavailable native
+bindings. These do not replace native CAN/safety/messaging, full-rlog replay,
+bench or controlled vehicle qualification. Run the Linux workflow below before
+considering release. Recovery comparisons also matched 8,000 command frames in
+20 scenarios against the immutable SP-BPDEV baseline, including recovery pulses.
+No numerical steering or firmware safety limit was raised.
+
+### Steering diagnostics and portal integration, 2026-10-03
+
+Append-only steering diagnostics record the final packed Ford request after
+controller neutralization, including source time, controller frame, wire mode,
+path angle and curvature. These describe the request queued for transmission;
+they do not assert that Panda accepted it or that the PSCM executed it. Compare
+them with independent safety and Ford feedback. Retain 20 Hz command snapshots
+in qlogs so an interleaved sample cannot hide a steering command.
+
+Fresh EPAS telemetry carries estimated steering-module current, voltage and
+status with its original CAN timestamp and explicit validity. The DBC describes
+the current as a filtered module estimate for BMS use; it is not a direct motor
+torque measurement. Missing/stale values must not be interpreted as zero effort.
+These diagnostics do not feed the control or warning decisions.
+
+Adapt the portal's parked-state checks to the current `IsOffroad` parameter,
+assuming onroad when state is missing or cannot be read. Pass the missing state
+callback to the status monitor's power-save check and recheck before restoration.
+Existing endpoint permissions and sysfs operations are preserved. Independent
+manager/power operations are not made atomic by the additional state check.
+
+### Sound and theme recovery, 2026-10-03
+
+Sound startup retries now cover both opening and starting the output stream.
+Invalid/empty/truncated theme WAVs fall back to stock sounds before reaching the
+callback. Reloads build the complete stock/theme/custom bank before publishing
+it, and short locked sections synchronize alert/cursor changes with playback;
+asset reads remain outside the callback lock.
+
+Theme colors and scene/season containers are validated before rendering. A
+UI-only activation marker covers asset loading and the first scene rendering
+period, including Rad Racer. If activation crashes, the next UI startup clears
+manual/automatic theme selection and uses the plain UI, preserving theme files.
+This targets activation/boot loops; crashes after successful activation still
+need diagnostics. A failed persistent reset keeps the marker and uses an
+in-memory fallback, so another startup retries recovery.
+
+34 UI source-level tests passed locally, including existing bundled-scene
+parsing/simulation, invalid assets, failed stream startup, theme recovery and
+concurrent alert/playback changes. Native PortAudio/GL/device behavior was not
+tested locally. The Linux workflow includes both new sound regression files
+and the existing base sound tests. The available drive logs did not record a
+sound/theme crash; these fixes address reproducible code failure paths without
+claiming a confirmed root cause for every reported reboot.
 
 ## Build and validation
 

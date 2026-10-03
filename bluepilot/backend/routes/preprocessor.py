@@ -39,6 +39,7 @@ from bluepilot.backend.routes.segments import get_route_segments
 
 # Import WebSocket broadcaster for cross-process communication
 from bluepilot.backend.realtime import WebSocketBroadcaster
+from bluepilot.backend.utils.params_fallback import is_explicitly_offroad
 
 # Configure logging
 logging.basicConfig(
@@ -84,9 +85,9 @@ def save_processing_state(state):
 def is_device_idle():
     """Check if device is idle (screen off + not driving)"""
     try:
-        # Check if onroad (driving)
-        onroad = params.get_bool("IsOnroad")
-        if onroad:
+        # Only process after the manager explicitly reports parked. This
+        # branch has IsOffroad; missing/unreadable state must remain busy.
+        if not is_explicitly_offroad(params.get("IsOffroad")):
             return False
 
         # Check screen state (awake param)

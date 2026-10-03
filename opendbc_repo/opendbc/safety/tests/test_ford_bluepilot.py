@@ -863,6 +863,115 @@ class TestFordPinionF150Safety(FordF150PinionGeometry, TestFordPinionCurvatureSa
   pass
 
 
+class TestFordAngleCandidateAdmission(unittest.TestCase):
+  """Offline admission probes for a proposed host-only 0.0021 curvature-error band.
+
+  These send real packed messages through unchanged native Ford safety. They do
+  not enable the candidate in the controller or establish vehicle response.
+  """
+
+  TX_MSGS: list = []  # composition, not another full CarSafetyTest matrix
+
+  def _prepare(self, speed, pinion=True, measured=0.):
+    if pinion:
+      case = TestFordPinionCANFDLongitudinalSafety()
+      # Use this route's Mach-E geometry rather than the Explorer harness default.
+      case.GEOMETRY_INDEX = FORD_PINION_GEOMETRY_INDEX[CAR.FORD_MUSTANG_MACH_E_MK1]
+      self.assertEqual(case.GEOMETRY_INDEX, 11)
+      case.PINION_SLIP_FACTOR = -0.00056209187
+      case.PINION_STEER_RATIO = 17.0
+      case.PINION_WHEELBASE = 2.984
+      case.SAFETY_PARAM_SP = int(FordSafetyFlagsSP.STEER_ANGLE_CURVATURE) | (case.GEOMETRY_INDEX << FORD_PINION_GEOMETRY_SHIFT)
+    else:
+      case = TestFordCANFDLongitudinalSafety()
+    case.setUp()
+    case._reset_curvature_measurement(measured, speed)
+    case.safety.set_controls_allowed(True)
+    return case
+
+  def _send_shadow(self, case, shadow, path_angle=0.005):
+    # LKA validates action=0 and latches intent; the following LMC2 performs
+    # the shadow proximity/acceleration checks and may reject that intent.
+    self.assertTrue(case._tx(case._lka_bp_status_msg(True, shadow)))
+    return case._tx(case._lat_ctl_msg(True, 0, path_angle, 0, 0))
+
+  def test_candidate_admitted_by_pinion_but_not_yaw_above_gate(self):
+    # The shadow is serialized at 1e-6 curvature resolution. Include values on
+    # either side of half a serialization unit around the proposed 0.0021 band.
+    for speed in (9., 10., 15., 25., 30.):
+      for pinion in (False, True):
+        for sign in (-1, 1):
+          for deviation in (0.002, 0.0020994, 0.0021006):
+            with self.subTest(speed=speed, pinion=pinion, sign=sign, deviation=deviation):
+              case = self._prepare(speed, pinion)
+              expected = pinion or speed <= 10. or deviation == 0.002
+              self.assertEqual(expected, self._send_shadow(case, sign * deviation, sign * 0.005))
+
+  def test_candidate_still_needs_raw_pinion_intersection(self):
+    # A learned reference can differ from the raw pinion reference. The extra
+    # host allowance cannot be added to that disagreement: keep intersecting
+    # with raw-pinion +/-0.003 before serializing the actual steering intent.
+    for speed in (9., 10., 15., 25., 30.):
+      for sign in (-1, 1):
+        for learned in (-0.0012, -0.0004, 0., 0.0004, 0.0012):
+          with self.subTest(speed=speed, sign=sign, learned=learned):
+            case = self._prepare(speed)
+            proposed = float(np.clip(sign * 0.01, learned - 0.0021, learned + 0.0021))
+            intersected = float(np.clip(proposed, -0.003, 0.003))
+            expected_without_intersection = speed <= 10. or abs(proposed) <= 0.003
+            self.assertEqual(expected_without_intersection, self._send_shadow(case, proposed, sign * 0.005))
+            self.assertTrue(self._send_shadow(case, intersected, sign * 0.005))
+
+  def test_pinion_shadow_quantization_preserves_existing_boundary(self):
+    # Get the measurement after real SteeringPinion_Data packing/conversion,
+    # then test either side of the board's existing inclusive 150+1 CAN band.
+    # The fractional CAN unit also exercises 1e-6 shadow packing followed by
+    # native truncation to the coarser 2e-5 curvature units, in both directions.
+    for speed in (15., 25., 30.):
+      for sign in (-1, 1):
+        with self.subTest(speed=speed, sign=sign):
+          case = self._prepare(speed, measured=sign * 0.00073)
+          measured_can = case.safety.get_angle_meas_max() if sign > 0 else case.safety.get_angle_meas_min()
+          boundary_can = measured_can + sign * 151
+          inside = (boundary_can + sign * 0.25) / case.DEG_TO_CAN
+          outside = (boundary_can + sign * 1.25) / case.DEG_TO_CAN
+          self.assertTrue(self._send_shadow(case, inside, sign * 0.005))
+          self.assertFalse(self._send_shadow(case, outside, sign * 0.005))
+          self.assertTrue(self._send_shadow(case, inside, sign * 0.005))
+
+  def test_candidate_does_not_relax_shadow_acceleration_cap(self):
+    for speed in (15., 25., 30.):
+      for sign in (-1, 1):
+        with self.subTest(speed=speed, sign=sign):
+          case = self._prepare(speed)
+          # Shared car.lateral.MAX_LATERAL_ACCEL is 3.0 + g*0.06, matching the
+          # angle shadow check; this is not the host curvature-mode 3.0 - g*0.06.
+          cap_can = case._get_max_curvature_can(speed)
+          # Both requests are within 0.0021 of measured curvature; the one
+          # above the independent acceleration envelope must still be denied.
+          measured = sign * (cap_can - 50) / case.DEG_TO_CAN
+          case._reset_curvature_measurement(measured, speed)
+          inside = sign * (cap_can - 2) / case.DEG_TO_CAN
+          outside = sign * (cap_can + 2) / case.DEG_TO_CAN
+          self.assertLess(abs(outside - measured), 0.0021)
+          self.assertTrue(self._send_shadow(case, inside, sign * 0.005))
+          self.assertFalse(self._send_shadow(case, outside, sign * 0.005))
+          self.assertTrue(self._send_shadow(case, inside, sign * 0.005))
+
+  def test_blanket_five_percent_path_angle_rate_increase_is_rejected(self):
+    # Full DBC angle range is not permission to change it faster. At the low
+    # speed plateau, +5% exceeds the board's unchanged rate plus quantization
+    # allowance, for both measurement modes and both steering directions.
+    for speed in (9., 10.):
+      for pinion in (False, True):
+        for sign in (-1, 1):
+          with self.subTest(speed=speed, pinion=pinion, sign=sign):
+            case = self._prepare(speed, pinion)
+            self.assertTrue(self._send_shadow(case, 0., 0.))
+            self.assertFalse(self._send_shadow(case, 0., sign * 0.055 * 1.05))
+            self.assertTrue(self._send_shadow(case, 0., sign * 0.055))
+
+
 class TestFordPinionGeometryTable(unittest.TestCase):
   """The firmware geometry table must match CarSpecs + calc_slip_factor(VehicleModel(CP))
   for every supported platform, so the table cannot rot as platforms change. Reads the

@@ -9,11 +9,13 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.layouts.main import MainLayout
 from openpilot.selfdrive.ui.mici.layouts.main import MiciMainLayout
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.bp.lib import theme_pack
 
 BIG_UI = gui_app.big_ui()
 
 
 def main():
+  theme_pack.initialize_ui_recovery()
   cores = {5, }
   # BluePilot: revert comma #37984 (5745909e9b43), which raised the UI to CTRL_HIGH (53, above
   # plannerd/radard). BP's overlay-heavy UI at that RT priority preempts the control processes and
@@ -34,6 +36,7 @@ def main():
     ui_state.update()
 
     if should_render:
+      theme_pack._ui_recovery.frame_rendered()
       # reaffine after power save offlines our core
       if COMMA_HARDWARE and os.sched_getaffinity(0) != cores:
         try:
@@ -46,6 +49,8 @@ def main():
       msg.uiDebug.cpuTimeMillis = (cpu_time + extra_cpu) * 1000
       msg.uiDebug.frameTimeMillis = frame_time * 1000
       pm.send('uiDebug', msg)
+
+  theme_pack._ui_recovery.close()
 
 
 if __name__ == "__main__":

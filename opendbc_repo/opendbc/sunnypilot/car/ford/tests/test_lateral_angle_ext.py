@@ -10,7 +10,7 @@ See the LICENSE.md file in the root directory for more details.
 # The shadow value is consumed by carcontroller as the input to ford.h's angle-mode
 # deviation check (Lane_Assist_Data1 bytes 5-6, judged against angle_meas). These tests
 # pin the truthfulness contract: whenever the planner kappa cannot honestly describe the
-# car's steering -- inactive, human-turn override, stall blip, driver pressing -- the
+# car's steering -- inactive, human-turn override, driver pressing -- the
 # published shadow must equal the measured curvature, so the panda-latched value always
 # stays inside the check's band and re-engage frames never compare a stale zero against
 # real measured curvature.
@@ -50,6 +50,8 @@ class _FakeLiveDelay:
 class _FakeSubMaster:
   def __init__(self, *args, **kwargs):
     self.updated = {s: False for s in ('modelV2', 'vehicleParameters', 'selfdriveState', 'radarState', 'lateralDelay')}
+    self.valid = {s: True for s in self.updated}
+    self.alive = {s: True for s in self.updated}
 
   def update(self, timeout=0):
     pass
@@ -198,11 +200,13 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertEqual(result.path_angle, 0.0)
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
-  def test_stall_blip_publishes_measured(self):
+  def test_stall_pulse_publishes_measured(self):
     self.ext.stall_blip_frames_left = 3
     result = self._update()
     self.assertTrue(self.ext.angle_stall_blip_active)
     self.assertEqual(result.path_angle, 0.0)
+    self.assertEqual(result.ramp_type, 0)
+    self.assertEqual(self.ext.stall_blip_frames_left, 2)
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
   def test_pressed_publishes_measured(self):
@@ -220,6 +224,202 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, expected)
     self.assertNotAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
     self.assertTrue(self.ext.bp_curvature_deviation_limited)
+
+
+class TestStallRecovery(unittest.TestCase):
+  """Retain SP recovery while narrowing its reactive trigger with PR #148.
+
+  These are command/state checks, not proof that a pulse restores physical authority.
+  """
+
+  def _scenario(self, desired=0.014, fraction=0.2, speed=10., direction=1):
+    cp = _explorer_cp()
+    ext = _Harness(cp)
+    # A permitted user gain keeps path_angle under the separate 0.10 rad gate.
+    # Otherwise that gate can mask a broken fractional test on deep demands.
+    ext.low_speed_curv_factor = 0.5
+    ext.model = _Model()
+    ext.model.orientationRate.z = [direction * desired * speed] * 33
+    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * desired * fraction * speed)
+    actuators = _Actuators(direction * desired)
+    return cp, ext, cs, actuators
+
+  def test_curve_entry_fraction_does_not_schedule_reactive_reset(self):
+    for fraction in (0.65, 0.72):
+      for direction in (-1, 1):
+        with self.subTest(fraction=fraction, direction=direction):
+          cp, ext, cs, actuators = self._scenario(desired=0.015, fraction=fraction, direction=direction)
+          for _ in range(80):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            self.assertTrue(ext.bp_curvature_deviation_limited)
+            self.assertLess(abs(result.path_angle), 0.10)
+            self.assertFalse(ext.angle_stall_blip_active)
+            self.assertEqual(ext.stall_blip_frames_left, 0)
+          self.assertEqual(ext.stall_blip_count, 0)
+          self.assertEqual(ext.stall_blip_hold_s, 0.)
+
+  def test_true_fractional_stall_retains_six_frame_recovery(self):
+    for fraction in (0., 0.2, 0.649):
+      for direction in (-1, 1):
+        with self.subTest(fraction=fraction, direction=direction):
+          cp, ext, cs, actuators = self._scenario(fraction=fraction, direction=direction)
+          for _ in range(20):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            if ext.stall_blip_frames_left:
+              break
+          self.assertEqual(ext.stall_blip_count, 1)
+          self.assertEqual(ext.stall_blip_frames_left, 6)
+          self.assertGreater(result.path_angle * direction, 0.)
+          for frames_left in range(5, -1, -1):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            self.assertTrue(ext.angle_stall_blip_active)
+            self.assertEqual(ext.stall_blip_frames_left, frames_left)
+            self.assertEqual(result.path_angle, 0.)
+            self.assertEqual(result.ramp_type, 0)
+            self.assertAlmostEqual(ext.bp_kappa_cmd, ext.get_current_curvature(cs))
+          self.assertEqual(ext.stall_blip_cooldown_s, 2.)
+          result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+          self.assertFalse(ext.angle_stall_blip_active)
+          self.assertGreater(result.path_angle * direction, 0.)
+          self.assertLessEqual(abs(result.path_angle), 0.055)
+
+  def test_proactive_sustained_press_release_is_unchanged(self):
+    cp, ext, cs, actuators = self._scenario(desired=0.002, fraction=1.)
+    cs.out.steeringPressed = True
+    cs.out.steeringAngleDeg = 5.0
+    for _ in range(20):
+      ext.update_angle_strategy(_CC(), cs, actuators, cp)
+    cs.out.steeringPressed = False
+    for frames_left in range(5, -1, -1):
+      result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+      self.assertTrue(ext.angle_stall_blip_active)
+      self.assertEqual(ext.stall_blip_frames_left, frames_left)
+      self.assertEqual(result.path_angle, 0.)
+    self.assertEqual(ext.stall_blip_count, 0)  # proactive pulses do not count as a reactive episode
+
+  def test_reactive_speed_driver_and_lane_change_gates_remain(self):
+    for blocked_by in ('speed', 'driver', 'lane_change'):
+      with self.subTest(blocked_by=blocked_by):
+        cp, ext, cs, actuators = self._scenario(speed=9. if blocked_by == 'speed' else 10.)
+        cs.out.steeringPressed = blocked_by == 'driver'
+        ext.model.meta.laneChangeState = 1 if blocked_by == 'lane_change' else 0
+        for _ in range(80):
+          ext.update_angle_strategy(_CC(), cs, actuators, cp)
+          self.assertFalse(ext.angle_stall_blip_active)
+        self.assertEqual(ext.stall_blip_count, 0)
+        self.assertEqual(ext.stall_blip_frames_left, 0)
+
+  def test_reactive_count_remains_bounded(self):
+    cp, ext, cs, actuators = self._scenario()
+    active_frames = 0
+    for _ in range(500):
+      ext.update_angle_strategy(_CC(), cs, actuators, cp)
+      active_frames += ext.angle_stall_blip_active
+    self.assertEqual(ext.stall_blip_count, 3)
+    self.assertEqual(active_frames, 18)
+
+  def test_inactive_clears_pending_recovery(self):
+    cp, ext, cs, actuators = self._scenario()
+    ext.stall_blip_frames_left = 6
+    ext.stall_blip_hold_s = 0.4
+    ext.stall_blip_count = 2
+    ext.press_timer_s = 1.
+    ext.update_angle_strategy(_CC(latActive=False), cs, actuators, cp)
+    self.assertFalse(ext.angle_stall_blip_active)
+    self.assertEqual(ext.stall_blip_frames_left, 0)
+    self.assertEqual(ext.stall_blip_hold_s, 0.)
+    self.assertEqual(ext.stall_blip_count, 0)
+    self.assertEqual(ext.press_timer_s, 0.)
+
+  def test_deliberate_human_turn_still_yields_and_then_resumes(self):
+    for direction in (-1, 1):
+      with self.subTest(direction=direction):
+        cp, ext, cs, actuators = self._scenario(direction=direction)
+        cs.out.steeringPressed = True
+        cs.out.steeringAngleDeg = direction * 5.0
+        ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        cs.out.steeringAngleDeg = direction * 60.0
+        for _ in range(40):
+          result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        self.assertTrue(ext.angle_human_turn_active)
+        self.assertEqual(result.path_angle, 0.0)
+        self.assertEqual(result.ramp_type, 0)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, ext.get_current_curvature(cs))
+        cs.out.steeringPressed = False
+        result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        self.assertFalse(ext.angle_human_turn_active)
+        self.assertFalse(ext.angle_stall_blip_active)
+        self.assertGreater(result.path_angle * direction, 0.0)
+
+
+class TestModelFallback(unittest.TestCase):
+  """Losing model data must preserve planner authority and discard stale trim."""
+
+  V_EGO = 15.0
+  PLANNER_CURVATURE = 0.001
+  MODEL_CURVATURE = 0.003
+
+  def _model(self):
+    model = _Model()
+    model.orientationRate.z = [self.MODEL_CURVATURE * self.V_EGO] * 33
+    return model
+
+  def _run(self, model, valid=True, alive=True, blend=0.5):
+    cp = _explorer_cp()
+    ext = _Harness(cp)
+    ext.model = model
+    ext.sm.valid['modelV2'] = valid
+    ext.sm.alive['modelV2'] = alive
+    ext.path_angle_blend_ratio = blend
+    cs = _CS(vEgoRaw=self.V_EGO, vEgo=self.V_EGO, yawRate=-self.PLANNER_CURVATURE * self.V_EGO)
+    for _ in range(20):
+      result = ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+    return ext, result
+
+  def test_missing_dead_and_invalid_models_match_planner_only(self):
+    _, baseline = self._run(self._model(), blend=0.0)
+    for model, valid, alive in ((None, True, True), (self._model(), False, True), (self._model(), True, False)):
+      with self.subTest(model_present=model is not None, valid=valid, alive=alive):
+        ext, result = self._run(model, valid, alive, blend=0.8)
+        self.assertAlmostEqual(result.path_angle, baseline.path_angle)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
+
+  def test_malformed_orientation_rates_match_planner_only(self):
+    _, baseline = self._run(self._model(), blend=0.0)
+    for rates in ([], [0.1] * 17, [0.1] * 32, [0.1] * 34, [float('nan')] * 33,
+                  [float('inf')] * 33, [[0.1]] * 33):
+      with self.subTest(rates_length=len(rates), first=rates[0] if rates else None):
+        model = self._model()
+        model.orientationRate.z = rates
+        ext, result = self._run(model, blend=0.8)
+        self.assertAlmostEqual(result.path_angle, baseline.path_angle)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
+
+  def test_healthy_model_blends_between_publication_ticks(self):
+    ext, _ = self._run(self._model(), blend=0.5)
+    self.assertFalse(ext.sm.updated['modelV2'])
+    self.assertAlmostEqual(ext.bp_kappa_cmd, 0.5 * (self.PLANNER_CURVATURE + self.MODEL_CURVATURE))
+
+  def test_stale_model_cannot_keep_bias_or_lane_change_scaling(self):
+    for lost_check in ('valid', 'alive'):
+      with self.subTest(lost_check=lost_check):
+        cp = _explorer_cp()
+        ext = _Harness(cp)
+        ext.model = self._model()
+        ext.enable_lane_positioning_ang = True
+        ext.custom_path_offset_ang = 0.3
+        ext.lane_centering_strength_ang = 1.0
+        cs = _CS(vEgoRaw=self.V_EGO, vEgo=self.V_EGO, yawRate=-self.PLANNER_CURVATURE * self.V_EGO)
+        for _ in range(50):
+          ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+        self.assertGreater(ext.lane_center_trim.correction, 0.0)
+        ext.model.meta.laneChangeState = 1
+        ext.model.meta.laneChangeDirection = 2
+        getattr(ext.sm, lost_check)['modelV2'] = False
+        ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+        self.assertEqual(ext.lane_center_trim.correction, 0.0)
+        self.assertFalse(ext.lane_change)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
 
 
 class TestPathAngleWireLimits(unittest.TestCase):

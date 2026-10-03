@@ -178,6 +178,17 @@ class ControllerStateBP:
   humanTurnLateralPaused: bool = False  # angle mode: lateral forced inactive (mode 0) during a manual turn
   stallBlipActive: bool = False  # angle mode: brief mode-0 pulse resetting PSCM authority after a post-override stall
   angleSaturated: bool = False  # angle mode: PSCM authority limit or DBC clamp modified this frame's command
+  fordSteeringCommand: 'ControllerStateBP.FordSteeringCommand' = field(default_factory=lambda: ControllerStateBP.FordSteeringCommand())
+
+  @auto_dataclass
+  class FordSteeringCommand:
+    dataAvailable: bool = False
+    pathAngle: float = 0.0
+    curvature: float = 0.0
+    mode: int = 0
+    canFd: bool = False
+    frame: int = 0
+    sourceMonoTime: int = 0
 
   # BluePilot: full BluePilot-menu settings snapshot -- see custom.capnp ControllerStateBP for
   # field-by-field param-key mapping and the field-retirement convention.

@@ -135,6 +135,8 @@ def publish_controller_state_bp(CI, pm):
     cs_bp.humanTurnLateralPaused = bool(getattr(CI.CC, "humanTurnLateralPaused", False))
     cs_bp.stallBlipActive = bool(getattr(CI.CC, "stallBlipActive", False))
     cs_bp.angleSaturated = bool(getattr(CI.CC, "bp_angle_saturated", False))
+    command = getattr(CI.CC, "fordSteeringCommand", {})
+    cs_bp.fordSteeringCommand = structs.ControllerStateBP.FordSteeringCommand(**command)
     # BluePilot: mode the controller actually ran, straight off the car controller (not Params).
     if getattr(CI.CC, "disable_BP_lat_UI", True):
       cs_bp.activeLateralMode = structs.ControllerStateBP.LateralMode.openpilot
@@ -186,4 +188,8 @@ def publish_car_state_bp(CI, pm, can_valid):
   if hasattr(CI.CS, 'car_state_bp_msg') and CI.CS.car_state_bp_msg is not None:
     cs_bp_send = CI.CS.car_state_bp_msg
     cs_bp_send.valid = can_valid
+    # Use the control path's existing result: parser.can_valid is a stateful
+    # getter, so optional telemetry must not advance its debounce counter.
+    if not can_valid:
+      cs_bp_send.carStateBP.fordEps.dataAvailable = False
     pm.send('carStateBP', cs_bp_send)

@@ -1,5 +1,7 @@
 import math
+from contextlib import contextmanager
 import numpy as np
+import threading
 import time
 import wave
 
@@ -63,6 +65,19 @@ sound_list: dict[int, tuple[str, int | None, float]] = {
   **sound_list_sp,
 }
 
+
+def load_sound(path):
+  """Reject empty or truncated assets before they reach the audio callback."""
+  with wave.open(path, 'rb') as wavefile:
+    if wavefile.getnchannels() != 1 or wavefile.getsampwidth() != 2 or wavefile.getframerate() != SAMPLE_RATE:
+      raise ValueError(f"sound must be mono 16-bit PCM at {SAMPLE_RATE} Hz: {path}")
+    length = wavefile.getnframes()
+    data = wavefile.readframes(length)
+    if length <= 0 or len(data) != length * 2:
+      raise ValueError(f"sound is empty or truncated: {path}")
+    return np.frombuffer(data, dtype=np.int16).astype(np.float32) / (2**16 / 2)
+
+
 def check_selfdrive_timeout_alert(sm):
   ss_missing = time.monotonic() - sm.recv_time['selfdriveState']
 
@@ -75,6 +90,9 @@ def check_selfdrive_timeout_alert(sm):
 
 class Soundd(QuietMode):
   def __init__(self):
+    # The PortAudio callback and the control thread share the alert/cursor state.
+    # Keep their transitions together; load assets outside this short critical section.
+    self._sound_lock = threading.RLock()
     super().__init__()
 
     self.load_sounds()
@@ -92,11 +110,16 @@ class Soundd(QuietMode):
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
 
   def load_sounds(self):
-    self.loaded_sounds: dict[int, np.ndarray] = {}
+    loaded_sounds, theme_pack_name = self._load_sound_bank()
+    with self._sound_lock:
+      self.loaded_sounds = loaded_sounds
+      self._theme_pack_name = theme_pack_name
+
+  def _load_sound_bank(self):
+    loaded_sounds: dict[int, np.ndarray] = {}
 
     # BluePilot: theme pack sound overrides — pack wavs replace stock files of the same name
     pack = theme_pack.get_active_pack(force=True)
-    self._theme_pack_name = pack.name if pack else ""
 
     # Load all sounds
     for sound in sound_list:
@@ -106,46 +129,43 @@ class Soundd(QuietMode):
       pack_path = pack.sound_path(filename) if pack else None
       for path in filter(None, (pack_path, stock_path)):
         try:
-          with wave.open(path, 'r') as wavefile:
-            assert wavefile.getnchannels() == 1
-            assert wavefile.getsampwidth() == 2
-            assert wavefile.getframerate() == SAMPLE_RATE
-
-            length = wavefile.getnframes()
-            self.loaded_sounds[sound] = np.frombuffer(wavefile.readframes(length), dtype=np.int16).astype(np.float32) / (2**16/2)
+          loaded_sounds[sound] = load_sound(path)
           break
-        except (OSError, AssertionError, wave.Error) as e:
+        except (OSError, ValueError, EOFError, wave.Error) as e:
           # A malformed pack wav (stereo/44.1kHz/mp3-in-disguise) falls back to the stock sound
           if path == stock_path:
             raise
           cloudlog.warning(f"soundd: theme pack sound {path} unusable ({e}), using stock {filename}")
+    # Publish a complete bank only. A failed reload must not leave the callback
+    # looking at a partially populated bank.
+    return loaded_sounds, pack.name if pack else ""
 
   def get_sound_data(self, frames): # get "frames" worth of data from the current alert sound, looping when required
+    with self._sound_lock:
+      ret = np.zeros(frames, dtype=np.float32)
 
-    ret = np.zeros(frames, dtype=np.float32)
+      if self.should_play_sound(self.current_alert):
+        num_loops = sound_list[self.current_alert][1]
+        sound_data = self.loaded_sounds[self.current_alert]
+        written_frames = 0
 
-    if self.should_play_sound(self.current_alert):
-      num_loops = sound_list[self.current_alert][1]
-      sound_data = self.loaded_sounds[self.current_alert]
-      written_frames = 0
-
-      current_sound_frame = self.current_sound_frame % len(sound_data)
-      loops = self.current_sound_frame // len(sound_data)
-
-      while written_frames < frames and (num_loops is None or loops < num_loops):
-        available_frames = sound_data.shape[0] - current_sound_frame
-        frames_to_write = min(available_frames, frames - written_frames)
-        ret[written_frames:written_frames+frames_to_write] = sound_data[current_sound_frame:current_sound_frame+frames_to_write]
-        written_frames += frames_to_write
-        self.current_sound_frame += frames_to_write
         current_sound_frame = self.current_sound_frame % len(sound_data)
         loops = self.current_sound_frame // len(sound_data)
-        if self.pending_stop and current_sound_frame == 0:
-          self.current_alert = AudibleAlert.none
-          self.pending_stop = False
-          break
 
-    return ret * self.current_volume
+        while written_frames < frames and (num_loops is None or loops < num_loops):
+          available_frames = sound_data.shape[0] - current_sound_frame
+          frames_to_write = min(available_frames, frames - written_frames)
+          ret[written_frames:written_frames+frames_to_write] = sound_data[current_sound_frame:current_sound_frame+frames_to_write]
+          written_frames += frames_to_write
+          self.current_sound_frame += frames_to_write
+          current_sound_frame = self.current_sound_frame % len(sound_data)
+          loops = self.current_sound_frame // len(sound_data)
+          if self.pending_stop and current_sound_frame == 0:
+            self.current_alert = AudibleAlert.none
+            self.pending_stop = False
+            break
+
+      return ret * self.current_volume
 
   def callback(self, data_out: np.ndarray, frames: int, time, status) -> None:
     if status:
@@ -153,22 +173,23 @@ class Soundd(QuietMode):
     data_out[:frames, 0] = self.get_sound_data(frames)
 
   def update_alert(self, new_alert):
-    current_alert_played_once = self.current_alert == AudibleAlert.none or self.current_sound_frame >= len(self.loaded_sounds[self.current_alert])
-    # let looping sounds finish the current loop instead of cutting off mid tone
-    if new_alert == AudibleAlert.none and self.current_alert != AudibleAlert.none and sound_list[self.current_alert][1] is None:
-      if current_alert_played_once:
-        self.pending_stop = True
-      else:
-        self.current_alert = AudibleAlert.none
+    with self._sound_lock:
+      current_alert_played_once = self.current_alert == AudibleAlert.none or self.current_sound_frame >= len(self.loaded_sounds[self.current_alert])
+      # let looping sounds finish the current loop instead of cutting off mid tone
+      if new_alert == AudibleAlert.none and self.current_alert != AudibleAlert.none and sound_list[self.current_alert][1] is None:
+        if current_alert_played_once:
+          self.pending_stop = True
+        else:
+          self.current_alert = AudibleAlert.none
+          self.current_sound_frame = 0
+        return
+      self.pending_stop = False
+      if self.current_alert != new_alert and (new_alert != AudibleAlert.none or current_alert_played_once):
+        if new_alert == AudibleAlert.warningImmediate:
+          self.ramp_start_volume = self.current_volume
+          self.ramp_start_time = time.monotonic()
+        self.current_alert = new_alert
         self.current_sound_frame = 0
-      return
-    self.pending_stop = False
-    if self.current_alert != new_alert and (new_alert != AudibleAlert.none or current_alert_played_once):
-      if new_alert == AudibleAlert.warningImmediate:
-        self.ramp_start_volume = self.current_volume
-        self.ramp_start_time = time.monotonic()
-      self.current_alert = new_alert
-      self.current_sound_frame = 0
 
   def get_audible_alert(self, sm):
     if sm.updated['selfdriveState']:
@@ -185,12 +206,34 @@ class Soundd(QuietMode):
     volume = ((weighted_db - AMBIENT_DB) / DB_SCALE) * (MAX_VOLUME - MIN_VOLUME) + MIN_VOLUME
     return math.pow(VOLUME_BASE, (np.clip(volume, MIN_VOLUME, MAX_VOLUME) - 1))
 
-  @retry(attempts=10, delay=3)
   def get_stream(self, sd):
     # reload sounddevice to reinitialize portaudio
     sd._terminate()
     sd._initialize()
     return sd.OutputStream(channels=1, samplerate=SAMPLE_RATE, callback=self.callback, blocksize=SAMPLE_BUFFER)
+
+  @retry(attempts=10, delay=3)
+  def start_stream(self, sd):
+    # Opening a PortAudio stream can succeed before the output device is ready
+    # to start it. Both operations need the same bounded retry budget.
+    stream = self.get_stream(sd)
+    try:
+      stream.start()
+    except Exception:
+      stream.close()
+      raise
+    return stream
+
+  @contextmanager
+  def audio_stream(self, sd):
+    stream = self.start_stream(sd)
+    try:
+      yield stream
+    finally:
+      try:
+        stream.stop()
+      finally:
+        stream.close()
 
   def soundd_thread(self):
     # sounddevice must be imported after forking processes
@@ -199,7 +242,7 @@ class Soundd(QuietMode):
 
     sm = messaging.SubMaster(['selfdriveState', 'selfdriveStateSP', 'soundPressure'])
 
-    with self.get_stream(sd) as stream:
+    with self.audio_stream(sd) as stream:
       rk = Ratekeeper(20)
 
       cloudlog.info(f"soundd stream started: {stream.samplerate=} {stream.channels=} {stream.dtype=} {stream.device=}, {stream.blocksize=}")

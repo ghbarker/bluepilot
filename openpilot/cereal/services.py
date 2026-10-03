@@ -95,7 +95,7 @@ _services: dict[str, tuple] = {
   "liveLocationKalman": (True, 20.),
 
   # BluePilot: controllerStateBP (lateral uncertainty) + carStateBP (hybrid drive)
-  "controllerStateBP": (True, 100., 10),
+  "controllerStateBP": (True, 100., 5),  # retain each 20 Hz Ford command in qlog
   "carStateBP": (True, 100., 10),
 
   # debug

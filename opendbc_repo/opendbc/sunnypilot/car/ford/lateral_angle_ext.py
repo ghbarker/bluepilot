@@ -99,6 +99,11 @@ _PSCM_SAT_UNWIND_RATE = 0.02        # rad/call (0.02 * 20Hz = 0.40 rad/s)
 # PSCM's authority, after which path_angle ramps back in from zero through the soft ROC.
 _STEER_DT = CarControllerParams.STEER_STEP * DT_CTRL  # 20 Hz lateral tick (matches human_turn.py)
 _STALL_GAP_MIN = 2.0 * CarControllerParams.CURVATURE_ERROR  # desired must lead measured by 2x the clip tolerance
+# Require a fractional delivery deficit as well as an absolute gap (BluePilot PR #148).
+# A large demand can otherwise pass the gap test during normal curve-entry lag.
+# This empirical gate reduces those false reactive resets; it does not qualify
+# the separate proactive hand-off pulse or prove that a detected stall is safe to reset.
+_STALL_DELIVERY_FRACTION = 0.65
 _STALL_HOLD_S = 0.5          # accumulated clip-binding time before a pulse fires
 _STALL_BLIP_FRAMES = 6       # mode-0 pulse length (6 frames @ 20 Hz = 300 ms; PSCM acked mode 0 in ~150 ms on-road)
 _STALL_COOLDOWN_S = 2.0      # re-arm delay after a pulse (release ramp + PSCM response time)
@@ -106,11 +111,13 @@ _STALL_MAX_BLIPS = 3         # give up on a stuck episode; devLim telemetry keep
 # Proactive hand-off blip: any sustained driver press attenuates the PSCM (route 000000be seg 4:
 # 3 s of sub-45-deg circle-exit steering left it at ~0x delivery, and the reactive detector's
 # fire-after-the-stall-develops timing meant 2.4 s of dead-straight running into the next curve
-# before the pulse landed). Firing the same pulse on the falling edge of a sustained press resets
-# the PSCM while the car is straight and the command is small -- a 300 ms lateral gap right at
-# hand-off, imperceptible, instead of a missed curve. The reactive detector above stays as backstop.
+# before the pulse landed). The original strategy therefore fires the same pulse on release
+# when the previous command is small, intending to recover authority before the next curve.
+# The 300 ms lateral gap is real; this gate does not establish straight driving or an
+# imperceptible hand-off. This baseline path is retained, with reactive detection as backstop.
 _PRESS_BLIP_MIN_S = 0.5      # press must last this long before its release earns a pulse
-# The pulse releases steering for 300 ms; never fire it in a curve.
+# Retained command-magnitude gate for the 300 ms pulse. A small path_angle alone
+# does not establish that the vehicle is on a straight; further recovery qualification is needed.
 _BLIP_MAX_PATH_ANGLE = 0.10  # rad
 
 
@@ -382,9 +389,10 @@ class LateralAngleExt:
       )
 
     # Proactive hand-off blip: the falling edge of a sustained press earns an immediate mode-0
-    # pulse (see _PRESS_BLIP_MIN_S) -- resets the PSCM's press-induced attenuation right at
-    # hand-off, while the car is straight and the command small, instead of waiting for the
-    # reactive stall detector below to watch the car miss the next curve first.
+    # pulse (see _PRESS_BLIP_MIN_S). The baseline design intends to clear press-induced
+    # attenuation before a reactive stall develops. Its previous-command magnitude gate
+    # alone does not establish a straight road or prove recovery; retain it without
+    # broadening admission while recording the resulting command and Ford response.
     if CS.out.steeringPressed:
       self.press_timer_s += _STEER_DT
     else:
@@ -434,6 +442,20 @@ class LateralAngleExt:
     LP = self.lp
     desired_curvature = float(actuators.curvature)
 
+    # modelV2 is cached between updates. Only use a healthy prediction for the
+    # optional blend/trim; absence must not blend the planner request toward zero.
+    model = self.model if (self.sm.valid.get('modelV2', False) and self.sm.alive.get('modelV2', False)) else None
+    curvatures = None
+    if model is not None:
+      try:
+        yaw_rates = np.asarray(model.orientationRate.z, dtype=float)
+        if yaw_rates.ndim != 1 or len(yaw_rates) != len(ModelConstants.T_IDXS) or not np.isfinite(yaw_rates).all():
+          model = None
+        else:
+          curvatures = yaw_rates / max(0.01, v_ego)
+      except (AttributeError, TypeError, ValueError):
+        model = None
+
     # Variable lookup time: t_base tracks planner pre-compensation; extra tapers on high speed and large curves.
     # Cap lateralDelay at 0.15s for VLT purposes. lateralDelay can calibrate up to ~420ms on some runs, which inflates
     # VLT to 0.6s and pushes the model lookahead 5m into the curve. At that depth the model sees full peak
@@ -444,10 +466,9 @@ class LateralAngleExt:
     _speed_factor = float(interp(v_ego, [_VLT_V_LOW_MS, _VLT_V_HIGH_MS], [1.0, 0.0]))
     # Direction-aware kappa factor: on curve ENTRY (model shows more curvature at t_base than planner now),
     # keep full lookahead so pre-steering begins early. On exit/apex, taper by magnitude to prevent unwind.
-    _kappa_at_t_base = 0.0
-    if self.model is not None and len(self.model.orientationRate.z) >= 17:
-      _curvatures_ref = np.array(self.model.orientationRate.z) / max(0.01, v_ego)
-      _kappa_at_t_base = abs(float(interp(_t_base, ModelConstants.T_IDXS, _curvatures_ref)))
+    _kappa_at_t_base = abs(desired_curvature)
+    if curvatures is not None:
+      _kappa_at_t_base = abs(float(interp(_t_base, ModelConstants.T_IDXS, curvatures)))
     _kappa_entering = _kappa_at_t_base > abs(desired_curvature)
     if _kappa_entering:
       _kappa_factor = 1.0  # curve deepening ahead: full extra lookahead for gradual entry
@@ -456,9 +477,8 @@ class LateralAngleExt:
     curvature_lookup_time = _t_base + self.vlt_extra_max * _speed_factor * _kappa_factor
     self.bp_curvature_lookup_time = curvature_lookup_time
 
-    predicted_curvature = 0.0
-    if self.model is not None and len(self.model.orientationRate.z) >= 17:
-      curvatures = np.array(self.model.orientationRate.z) / max(0.01, v_ego)
+    predicted_curvature = desired_curvature
+    if curvatures is not None:
       predicted_curvature = float(
         interp(curvature_lookup_time, ModelConstants.T_IDXS, curvatures)
       )
@@ -494,19 +514,19 @@ class LateralAngleExt:
     requested_curvature = predicted_curvature * b_blend + desired_curvature * (1.0 - b_blend)
     self._desired_curvature_last = desired_curvature
 
-    if self.model is not None:
-      self.lane_change = self.model.meta.laneChangeState in (1, 2, 3)
+    if model is not None:
+      self.lane_change = model.meta.laneChangeState in (1, 2, 3)
     else:
       self.lane_change = False
 
     lane_change_factor = interp(
       v_ego, self.lane_change_factor_bp, [self.lane_change_factor_low, self.lane_change_factor_high_ang]
     )
-    if self.lane_change and self.model is not None:
-      if self.model.meta.laneChangeDirection == 1 and requested_curvature < 0:
+    if self.lane_change and model is not None:
+      if model.meta.laneChangeDirection == 1 and requested_curvature < 0:
         requested_curvature *= lane_change_factor
         precision = 0
-      elif self.model.meta.laneChangeDirection == 2 and requested_curvature > 0:
+      elif model.meta.laneChangeDirection == 2 and requested_curvature > 0:
         requested_curvature *= lane_change_factor
         precision = 0
     self.precision_type = precision
@@ -520,7 +540,7 @@ class LateralAngleExt:
     # trimmed value inherits every limiter this file already applies to kappa_cmd instead of
     # bypassing them.
     kappa_cmd = self.lane_center_trim.update(
-      kappa_cmd, self.model, v_ego, self.enable_lane_positioning_ang,
+      kappa_cmd, model, v_ego, self.enable_lane_positioning_ang,
       self.custom_path_offset_ang, self.lane_centering_strength_ang,
       CC.latActive, self.lane_change)
 
@@ -648,14 +668,15 @@ class LateralAngleExt:
 
     # Post-override stall detection (mechanism in the module constants' comment). Fires the mode-0
     # blip when, hands-free, desired curvature has led measured by more than 2x the deviation
-    # clip's tolerance while the clip was actually binding for _STALL_HOLD_S accumulated seconds.
+    # clip's tolerance and measured magnitude is below _STALL_DELIVERY_FRACTION of demand,
+    # while the clip was actually binding for _STALL_HOLD_S accumulated seconds.
     # devLim flickers mid-stall (~63% duty on the diagnosis route), so off frames hold the
     # accumulator rather than resetting it; a closed gap or driver press ends the episode.
     self.stall_blip_cooldown_s = max(0.0, self.stall_blip_cooldown_s - _STEER_DT)
     _stall_gap = desired_curvature - current_curvature
     _stalled = (not CS.out.steeringPressed and not self.lane_change and v_ego > 9.0
                 and abs(_stall_gap) > _STALL_GAP_MIN
-                and abs(desired_curvature) > abs(current_curvature))
+                and abs(current_curvature) < _STALL_DELIVERY_FRACTION * abs(desired_curvature))
     if _stalled:
       if self.bp_curvature_deviation_limited and self.stall_blip_cooldown_s <= 0.0:
         self.stall_blip_hold_s += _STEER_DT

@@ -65,8 +65,7 @@ def check_and_restore_power_save(is_onroad_func):
     if last_activity_time is None:
         return
 
-    # CRITICAL: Never disable cores when onroad or about to go onroad
-    # Check onroad status BEFORE checking idle time
+    # Check onroad status before checking idle time.
     if is_onroad_func():
         # Device is onroad, keep cores enabled
         last_activity_time = None  # Reset so we don't keep trying
@@ -74,5 +73,11 @@ def check_and_restore_power_save(is_onroad_func):
 
     idle_time = time.time() - last_activity_time
     if idle_time > IDLE_TIMEOUT_SECONDS:
+        # Recheck just before restoring: the state may have changed since the
+        # first read. This reduces the transition window; it is not atomic
+        # with the manager's onroad transition or the sysfs writes.
+        if is_onroad_func():
+            last_activity_time = None
+            return
         restore_power_save()
         last_activity_time = None  # Reset so we don't keep trying

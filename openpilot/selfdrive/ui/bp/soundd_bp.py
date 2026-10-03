@@ -4,7 +4,6 @@ import hashlib
 import os
 import socket
 import tempfile
-import wave
 
 import numpy as np
 
@@ -16,7 +15,7 @@ from openpilot.selfdrive.ui.bp.lib.custom_sound import (
   CustomSoundSelection,
   get_custom_sound_selection,
 )
-from openpilot.selfdrive.ui.soundd import MAX_VOLUME, SAMPLE_BUFFER, SAMPLE_RATE, Soundd
+from openpilot.selfdrive.ui.soundd import MAX_VOLUME, SAMPLE_BUFFER, SAMPLE_RATE, Soundd, load_sound
 
 
 AudibleAlert = log.SelfdriveState.AudibleAlert
@@ -65,18 +64,7 @@ def get_test_control_socket_path() -> str:
 
 def _load_mono_sound(path: str) -> np.ndarray:
   """Load the exact PCM format expected by soundd."""
-  with wave.open(path, "rb") as wavefile:
-    if wavefile.getnchannels() != 1:
-      raise ValueError(f"custom sound must be mono: {path}")
-    if wavefile.getsampwidth() != 2:
-      raise ValueError(f"custom sound must use 16-bit PCM: {path}")
-    if wavefile.getframerate() != SAMPLE_RATE:
-      raise ValueError(f"custom sound must be {SAMPLE_RATE} Hz: {path}")
-
-    length = wavefile.getnframes()
-    if length <= 0:
-      raise ValueError(f"custom sound is empty: {path}")
-    return np.frombuffer(wavefile.readframes(length), dtype=np.int16).astype(np.float32) / (2**16 / 2)
+  return load_sound(path)
 
 
 def _requested_sound_selection(params) -> CustomSoundSelection | None:
@@ -101,13 +89,13 @@ class SounddBP(Soundd):
     if os.getenv(SOUND_TEST_CONTROL_ENV) == "1":
       self._open_test_control()
 
-  def load_sounds(self) -> None:
+  def _load_sound_bank(self):
     # Load every upstream sound first. Any custom-sound failure therefore leaves
     # soundd fully functional with the correct device-default sounds.
-    super().load_sounds()
+    loaded_sounds, theme_pack_name = super()._load_sound_bank()
     selection = _requested_sound_selection(self.params)
     if selection is None:
-      return
+      return loaded_sounds, theme_pack_name
 
     try:
       custom_sounds = {
@@ -116,10 +104,11 @@ class SounddBP(Soundd):
       }
     except Exception:
       cloudlog.exception("BluePilot: failed to load selected sound pack; using device-default sounds")
-      return
+      return loaded_sounds, theme_pack_name
 
-    self.loaded_sounds.update(custom_sounds)
+    loaded_sounds.update(custom_sounds)
     cloudlog.info(f"BluePilot: loaded {selection.name} sound pack")
+    return loaded_sounds, theme_pack_name
 
   def get_stream(self, sd):
     """Allow local simulations to select an output without affecting devices."""
@@ -177,22 +166,23 @@ class SounddBP(Soundd):
 
   def get_audible_alert(self, sm) -> None:
     test_alert = self._poll_test_control()
-    if test_alert is not None:
-      # The manual simulator command is sound-only: it deliberately leaves the
-      # replayed selfdriveState and SunnyPilot engagement state untouched.
-      self.update_alert(test_alert)
-      self._test_alert_active = True
-      self._test_report_audio = True
+    with self._sound_lock:
+      if test_alert is not None:
+        # The manual simulator command is sound-only: it deliberately leaves the
+        # replayed selfdriveState and SunnyPilot engagement state untouched.
+        self.update_alert(test_alert)
+        self._test_alert_active = True
+        self._test_report_audio = True
 
-    if self._test_alert_active:
-      # Hold the preview at full volume and prevent replayed alerts from
-      # replacing it before its single pass through the audio callback ends.
-      self.current_volume = MAX_VOLUME
-      if self.current_sound_frame >= len(self.loaded_sounds[self.current_alert]):
-        self._test_alert_active = False
-        self.current_alert = AudibleAlert.none
-        self.current_sound_frame = 0
-      return
+      if self._test_alert_active:
+        # Hold the preview at full volume and prevent replayed alerts from
+        # replacing it before its single pass through the audio callback ends.
+        self.current_volume = MAX_VOLUME
+        if self.current_sound_frame >= len(self.loaded_sounds[self.current_alert]):
+          self._test_alert_active = False
+          self.current_alert = AudibleAlert.none
+          self.current_sound_frame = 0
+        return
 
     super().get_audible_alert(sm)
 
