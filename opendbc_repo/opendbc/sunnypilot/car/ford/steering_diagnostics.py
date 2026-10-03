@@ -84,3 +84,43 @@ def fill_eps_diagnostics(feedback, cp, now_nanos):
   except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
     # Optional diagnostics must not interrupt car-state processing.
     return
+
+
+PSCM_MAX_AGE_NS = 150_000_000
+
+
+def fill_pscm_status(feedback, cp, now_nanos, can_fd):
+  """Log raw CAN-FD PSCM feature/driver status; never infer spare steering authority.
+
+  All four signals must come from the same recent received frame. Publisher
+  validity masking uses the existing control result, without reading can_valid.
+  """
+  feedback.dataAvailable = False
+  feedback.laActAvail = 0
+  feedback.laActDeny = False
+  feedback.laHandsOff = False
+  feedback.tjaHandsOnConfidence = False
+  feedback.sourceMonoTime = 0
+  if not can_fd:
+    return
+  try:
+    name = "Lane_Assist_Data3_FD1"
+    signals = ("LaActAvail_D_Actl", "LaActDeny_B_Actl", "LaHandsOff_B_Actl", "TjaHandsOnCnfdnc_B_Est")
+    times = [cp.ts_nanos.get(name, {}).get(signal, 0) for signal in signals]
+    source_time = times[0]
+    if not isinstance(source_time, int) or not 0 < source_time < 2**64 or any(t != source_time for t in times):
+      return
+    feedback.sourceMonoTime = source_time
+    if not 0 <= now_nanos - source_time <= PSCM_MAX_AGE_NS:
+      return
+    values = [float(cp.vl[name][signal]) for signal in signals]
+    if any(not math.isfinite(value) or value != int(value) or not 0 <= value <= maximum
+           for value, maximum in zip(values, (3, 1, 1, 1), strict=True)):
+      return
+    feedback.laActAvail = int(values[0])
+    feedback.laActDeny = bool(values[1])
+    feedback.laHandsOff = bool(values[2])
+    feedback.tjaHandsOnConfidence = bool(values[3])
+    feedback.dataAvailable = True
+  except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+    return

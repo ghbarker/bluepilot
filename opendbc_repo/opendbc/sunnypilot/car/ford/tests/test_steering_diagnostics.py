@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from opendbc.sunnypilot.car.ford import steering_diagnostics
-from opendbc.sunnypilot.car.ford.steering_diagnostics import can_clock_nanos, fill_eps_diagnostics, steering_command_snapshot
+from opendbc.sunnypilot.car.ford.steering_diagnostics import can_clock_nanos, fill_eps_diagnostics, fill_pscm_status, steering_command_snapshot
 
 
 NOW = 10_000_000_000
@@ -100,6 +100,79 @@ class TestSteeringDiagnostics(unittest.TestCase):
         self.assertEqual(steering_command_snapshot(message, 1, NOW), {"dataAvailable": False})
     for frame, timestamp in ((-1, NOW), (0, 0), (2**64, NOW), (1, float("nan")), (1, 2**64)):
       self.assertEqual(steering_command_snapshot((0x3D6, bytes(8), 0), frame, timestamp), {"dataAvailable": False})
+
+
+class TestPscmStatus(unittest.TestCase):
+  @staticmethod
+  def parser():
+    values = dict(LaActAvail_D_Actl=0, LaActDeny_B_Actl=0, LaHandsOff_B_Actl=0, TjaHandsOnCnfdnc_B_Est=0)
+    return SimpleNamespace(vl={"Lane_Assist_Data3_FD1": values},
+                           ts_nanos={"Lane_Assist_Data3_FD1": dict.fromkeys(values, NOW)})
+
+  def test_all_documented_feature_values_are_raw_diagnostics(self):
+    for availability in range(4):
+      cp, out = self.parser(), SimpleNamespace()
+      cp.vl["Lane_Assist_Data3_FD1"].update(LaActAvail_D_Actl=availability, LaActDeny_B_Actl=1,
+                                         LaHandsOff_B_Actl=1, TjaHandsOnCnfdnc_B_Est=1)
+      fill_pscm_status(out, cp, NOW + 150_000_000, True)
+      self.assertTrue(out.dataAvailable)
+      self.assertEqual(out.laActAvail, availability)
+      self.assertTrue(out.laActDeny and out.laHandsOff and out.tjaHandsOnConfidence)
+      self.assertEqual(out.sourceMonoTime, NOW)
+
+  def test_zero_status_requires_a_received_frame(self):
+    cp, out = self.parser(), SimpleNamespace()
+    fill_pscm_status(out, cp, NOW, True)
+    self.assertTrue(out.dataAvailable)
+    self.assertEqual(out.laActAvail, 0)
+    for times in ({}, dict.fromkeys(cp.vl["Lane_Assist_Data3_FD1"], 0)):
+      cp.ts_nanos["Lane_Assist_Data3_FD1"] = times
+      fill_pscm_status(out, cp, NOW, True)
+      self.assertFalse(out.dataAvailable)
+
+  def test_missing_stale_future_mixed_and_non_canfd_clear_previous_data(self):
+    for variant in ('missing', 'stale', 'future', 'mixed', 'non_canfd', 'missing_signal'):
+      with self.subTest(variant=variant):
+        cp, out = self.parser(), SimpleNamespace()
+        cp.vl["Lane_Assist_Data3_FD1"].update(LaActAvail_D_Actl=3, LaActDeny_B_Actl=1,
+                                           LaHandsOff_B_Actl=1, TjaHandsOnCnfdnc_B_Est=1)
+        fill_pscm_status(out, cp, NOW, True)
+        self.assertTrue(out.dataAvailable)
+        now = NOW
+        if variant == 'missing':
+          cp = None
+        elif variant == 'stale':
+          now += 150_000_001
+        elif variant == 'future':
+          now -= 1
+        elif variant == 'mixed':
+          cp.ts_nanos["Lane_Assist_Data3_FD1"]["LaHandsOff_B_Actl"] -= 1
+        elif variant == 'missing_signal':
+          del cp.vl["Lane_Assist_Data3_FD1"]["LaHandsOff_B_Actl"]
+        fill_pscm_status(out, cp, now, variant != 'non_canfd')
+        self.assertFalse(out.dataAvailable)
+        self.assertEqual((out.laActAvail, out.laActDeny, out.laHandsOff, out.tjaHandsOnConfidence), (0, False, False, False))
+
+  def test_bad_signals_never_claim_validity(self):
+    for signal in self.parser().vl["Lane_Assist_Data3_FD1"]:
+      for bad in (-1, 4, .5, float('nan'), float('inf'), None, 'bad'):
+        cp, out = self.parser(), SimpleNamespace()
+        cp.vl["Lane_Assist_Data3_FD1"][signal] = bad
+        fill_pscm_status(out, cp, NOW, True)
+        self.assertFalse(out.dataAvailable, (signal, bad))
+
+  def test_never_reads_stateful_parser_validity(self):
+    class Parser:
+      vl = TestPscmStatus.parser().vl
+      ts_nanos = TestPscmStatus.parser().ts_nanos
+
+      @property
+      def can_valid(self):
+        raise AssertionError('diagnostics changed control-path CAN debounce')
+
+    out = SimpleNamespace()
+    fill_pscm_status(out, Parser(), NOW, True)
+    self.assertTrue(out.dataAvailable)
 
 
 if __name__ == "__main__":

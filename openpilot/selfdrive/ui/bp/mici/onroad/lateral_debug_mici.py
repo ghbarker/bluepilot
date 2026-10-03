@@ -12,6 +12,7 @@ import pyray as rl
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.selfdrive.ui.ui_state import device, ui_state
+from openpilot.selfdrive.ui.bp.lateral_debug_status import diagnostic_lines
 from bluepilot.ui.widgets.debug.debug_colors import DebugColors
 from bluepilot.ui.widgets.debug.debug_graph import TimeSeriesGraph, GraphConfig, GraphSeries
 from bluepilot.ui.widgets.debug.angle_factor_adjuster import AngleFactorAdjuster
@@ -64,6 +65,10 @@ class LateralDebugMici(Widget):
       ]
     )
     self._last_push_time = 0.0
+    self._diagnostic_text = 'Auto-cal: unavailable'
+    self._next_diagnostic_time = 0.0
+    self._diagnostic_fit_key = None
+    self._diagnostic_fitted = ''
 
   def show_event(self):
     super().show_event()
@@ -78,6 +83,12 @@ class LateralDebugMici(Widget):
     if sm is None:
       return
     now = time.monotonic()
+    if now >= self._next_diagnostic_time:
+      delay, self._diagnostic_text = diagnostic_lines(
+        sm, time.monotonic_ns(), ui_state.started,
+        getattr(getattr(ui_state, 'CP', None), 'steerActuatorDelay', None))
+      self._graph._config.title = f'Steering Angle | {delay}'
+      self._next_diagnostic_time = now + 0.5
     if now - self._last_push_time < _DATA_PUSH_INTERVAL:
       return
     desired = 0.0
@@ -105,6 +116,19 @@ class LateralDebugMici(Widget):
     # Graph fills the whole screen — title, axes, legend are all drawn inside.
     # The legend is lifted via legend_y_offset so it doesn't overlap "tap to close" below.
     self._graph.render(rect)
+
+    # Fit a read-only calibration summary between the title and plot. The
+    # adjuster retains its existing touch area; no calibration controls added.
+    font = gui_app.font(FontWeight.NORMAL)
+    available = max(0, rect.width - self._graph.SIDE_MARGIN - _ADJUSTER_WIDTH - 20)
+    fit_key = (self._diagnostic_text, available)
+    if fit_key != self._diagnostic_fit_key:
+      self._diagnostic_fitted = self._diagnostic_text
+      while self._diagnostic_fitted and rl.measure_text_ex(font, self._diagnostic_fitted, 14, 0).x > available:
+        self._diagnostic_fitted = self._diagnostic_fitted[:-1]
+      self._diagnostic_fit_key = fit_key
+    rl.draw_text_ex(font, self._diagnostic_fitted, rl.Vector2(rect.x + self._graph.SIDE_MARGIN, rect.y + 35),
+                    14, 0, rl.Color(170, 180, 190, 235))
 
     # Angle-factor adjuster overlaps the graph's right edge (angle mode only)
     adjuster_w = _ADJUSTER_WIDTH if self._adjuster.is_visible else 0

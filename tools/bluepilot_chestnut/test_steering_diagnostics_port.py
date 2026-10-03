@@ -8,7 +8,7 @@ from opendbc.can import CANPacker, CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.ford.values import CAR
 from opendbc.sunnypilot.car.ford import fordcan_ext
-from opendbc.sunnypilot.car.ford.steering_diagnostics import steering_command_snapshot, fill_eps_diagnostics
+from opendbc.sunnypilot.car.ford.steering_diagnostics import steering_command_snapshot, fill_eps_diagnostics, fill_pscm_status
 from openpilot.cereal import custom, log
 from openpilot.selfdrive.car.helpers import convert_to_capnp
 
@@ -139,6 +139,8 @@ def test_publisher_masks_eps_availability_with_existing_control_validity(can_val
   from openpilot.cereal import messaging
   state = messaging.new_message("carStateBP", valid=True)
   state.carStateBP.fordEps.dataAvailable = True
+  state.carStateBP.fordPscmStatus.dataAvailable = True
+  state.carStateBP.fordPscmStatus.sourceMonoTime = NOW
   state.carStateBP.fordEps.sourceMonoTime = NOW
   state.carStateBP.fordEps.estimatedCurrentAmps = 3.
   ci = SimpleNamespace(CS=SimpleNamespace(car_state_bp_msg=state))
@@ -148,4 +150,30 @@ def test_publisher_masks_eps_availability_with_existing_control_validity(can_val
   with log.Event.from_bytes(events["carStateBP"]) as event:
     assert event.valid == can_valid
     assert event.carStateBP.fordEps.dataAvailable == can_valid
+    assert event.carStateBP.fordPscmStatus.dataAvailable == can_valid
+    assert event.carStateBP.fordPscmStatus.sourceMonoTime == NOW
     assert event.carStateBP.fordEps.sourceMonoTime == NOW
+
+
+@pytest.mark.parametrize("available", range(4))
+@pytest.mark.parametrize("flags", [(0, 0, 0), (1, 1, 1), (1, 0, 1), (0, 1, 0)])
+def test_pscm_status_native_packet_schema_and_stale_clear(available, flags):
+  packer = CANPacker(DBC)
+  parser = CANParser(DBC, [("Lane_Assist_Data3_FD1", 33)], 0)
+  denied, hands_off, confidence = flags
+  values = dict(LaActAvail_D_Actl=available, LaActDeny_B_Actl=denied,
+                LaHandsOff_B_Actl=hands_off, TjaHandsOnCnfdnc_B_Est=confidence)
+  parser.update([(NOW, [packer.make_can_msg("Lane_Assist_Data3_FD1", 0, values)])])
+  before = parser.can_invalid_cnt
+  state = custom.CarStateBP.new_message()
+  fill_pscm_status(state.fordPscmStatus, parser, NOW + 1, True)
+  assert parser.can_invalid_cnt == before
+  with custom.CarStateBP.from_bytes(state.to_bytes()) as decoded:
+    out = decoded.fordPscmStatus
+    assert out.dataAvailable and out.sourceMonoTime == NOW
+    assert (out.laActAvail, out.laActDeny, out.laHandsOff, out.tjaHandsOnConfidence) == (available, *flags)
+  fill_pscm_status(state.fordPscmStatus, parser, NOW + 150_000_001, True)
+  assert not state.fordPscmStatus.dataAvailable
+  assert state.fordPscmStatus.sourceMonoTime == NOW
+  assert (state.fordPscmStatus.laActAvail, state.fordPscmStatus.laActDeny,
+          state.fordPscmStatus.laHandsOff, state.fordPscmStatus.tjaHandsOnConfidence) == (0, False, False, False)

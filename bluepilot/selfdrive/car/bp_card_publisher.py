@@ -192,4 +192,5 @@ def publish_car_state_bp(CI, pm, can_valid):
     # getter, so optional telemetry must not advance its debounce counter.
     if not can_valid:
       cs_bp_send.carStateBP.fordEps.dataAvailable = False
+      cs_bp_send.carStateBP.fordPscmStatus.dataAvailable = False
     pm.send('carStateBP', cs_bp_send)
