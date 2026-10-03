@@ -10,7 +10,7 @@ See the LICENSE.md file in the root directory for more details.
 # The shadow value is consumed by carcontroller as the input to ford.h's angle-mode
 # deviation check (Lane_Assist_Data1 bytes 5-6, judged against angle_meas). These tests
 # pin the truthfulness contract: whenever the planner kappa cannot honestly describe the
-# car's steering -- inactive, human-turn override, stall blip, driver pressing -- the
+# car's steering -- inactive, human-turn override, driver pressing -- the
 # published shadow must equal the measured curvature, so the panda-latched value always
 # stays inside the check's band and re-engage frames never compare a stale zero against
 # real measured curvature.
@@ -50,6 +50,8 @@ class _FakeLiveDelay:
 class _FakeSubMaster:
   def __init__(self, *args, **kwargs):
     self.updated = {s: False for s in ('modelV2', 'vehicleParameters', 'selfdriveState', 'radarState', 'lateralDelay')}
+    self.valid = {s: True for s in self.updated}
+    self.alive = {s: True for s in self.updated}
 
   def update(self, timeout=0):
     pass
@@ -198,12 +200,14 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertEqual(result.path_angle, 0.0)
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
-  def test_stall_blip_publishes_measured(self):
+  def test_legacy_stall_pulse_state_does_not_disable_steering(self):
+    # Automatic reset pulses were removed: a queued legacy pulse must not create
+    # neutral steering frames while lateral control is otherwise active.
     self.ext.stall_blip_frames_left = 3
     result = self._update()
-    self.assertTrue(self.ext.angle_stall_blip_active)
-    self.assertEqual(result.path_angle, 0.0)
-    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
+    self.assertFalse(self.ext.angle_stall_blip_active)
+    self.assertNotEqual(result.path_angle, 0.0)
+    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured + CarControllerParams.CURVATURE_ERROR)
 
   def test_pressed_publishes_measured(self):
     self.cs.out.steeringPressed = True
@@ -220,6 +224,147 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, expected)
     self.assertNotAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
     self.assertTrue(self.ext.bp_curvature_deviation_limited)
+
+
+class TestContinuousSteering(unittest.TestCase):
+  """Lag/press release must not manufacture 300 ms neutral-control intervals.
+
+  These verify command continuity, not that the physical PSCM regains authority.
+  """
+
+  def _scenario(self, speed, direction, with_model):
+    cp = _explorer_cp()
+    ext = _Harness(cp)
+    # Small but nonzero measured turn, with a persistent larger upstream request.
+    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * 0.0005 * speed)
+    actuators = _Actuators(curvature=direction * 0.008)
+    if with_model:
+      ext.model = _Model()
+      ext.model.orientationRate.z = [actuators.curvature * speed] * 33
+    else:
+      ext.model = None
+    return cp, ext, cs, actuators
+
+  def test_persistent_tracking_gap_never_triggers_neutral_pulse(self):
+    for speed in (5., 9., 9.1, 15., 30., 40.):
+      for direction in (-1, 1):
+        for with_model in (False, True):
+          with self.subTest(speed=speed, direction=direction, with_model=with_model):
+            cp, ext, cs, actuators = self._scenario(speed, direction, with_model)
+            for _ in range(200):
+              result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+              self.assertFalse(ext.angle_stall_blip_active)
+              self.assertFalse(ext.angle_human_turn_active)
+              self.assertGreater(result.path_angle * direction, 0.0)
+            if speed > 9.:
+              self.assertTrue(ext.bp_curvature_deviation_limited)
+
+  def test_sustained_driver_press_release_keeps_requested_direction(self):
+    for speed in (5., 15., 30.):
+      for direction in (-1, 1):
+        for with_model in (False, True):
+          with self.subTest(speed=speed, direction=direction, with_model=with_model):
+            cp, ext, cs, actuators = self._scenario(speed, direction, with_model)
+            cs.out.steeringPressed = True
+            cs.out.steeringAngleDeg = direction * 5.0  # below intentional human-turn threshold
+            for _ in range(20):
+              ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            cs.out.steeringPressed = False
+            for _ in range(20):
+              result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+              self.assertFalse(ext.angle_stall_blip_active)
+              self.assertFalse(ext.angle_human_turn_active)
+              self.assertGreater(result.path_angle * direction, 0.0)
+
+  def test_deliberate_human_turn_still_yields_and_then_resumes(self):
+    for direction in (-1, 1):
+      with self.subTest(direction=direction):
+        cp, ext, cs, actuators = self._scenario(15., direction, True)
+        cs.out.steeringPressed = True
+        cs.out.steeringAngleDeg = direction * 5.0
+        ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        cs.out.steeringAngleDeg = direction * 60.0
+        for _ in range(40):
+          result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        self.assertTrue(ext.angle_human_turn_active)
+        self.assertEqual(result.path_angle, 0.0)
+        self.assertEqual(result.ramp_type, 0)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, ext.get_current_curvature(cs))
+        cs.out.steeringPressed = False
+        result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+        self.assertFalse(ext.angle_human_turn_active)
+        self.assertFalse(ext.angle_stall_blip_active)
+        self.assertGreater(result.path_angle * direction, 0.0)
+
+
+class TestModelFallback(unittest.TestCase):
+  """Losing model data must preserve planner authority and discard stale trim."""
+
+  V_EGO = 15.0
+  PLANNER_CURVATURE = 0.001
+  MODEL_CURVATURE = 0.003
+
+  def _model(self):
+    model = _Model()
+    model.orientationRate.z = [self.MODEL_CURVATURE * self.V_EGO] * 33
+    return model
+
+  def _run(self, model, valid=True, alive=True, blend=0.5):
+    cp = _explorer_cp()
+    ext = _Harness(cp)
+    ext.model = model
+    ext.sm.valid['modelV2'] = valid
+    ext.sm.alive['modelV2'] = alive
+    ext.path_angle_blend_ratio = blend
+    cs = _CS(vEgoRaw=self.V_EGO, vEgo=self.V_EGO, yawRate=-self.PLANNER_CURVATURE * self.V_EGO)
+    for _ in range(20):
+      result = ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+    return ext, result
+
+  def test_missing_dead_and_invalid_models_match_planner_only(self):
+    _, baseline = self._run(self._model(), blend=0.0)
+    for model, valid, alive in ((None, True, True), (self._model(), False, True), (self._model(), True, False)):
+      with self.subTest(model_present=model is not None, valid=valid, alive=alive):
+        ext, result = self._run(model, valid, alive, blend=0.8)
+        self.assertAlmostEqual(result.path_angle, baseline.path_angle)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
+
+  def test_malformed_orientation_rates_match_planner_only(self):
+    _, baseline = self._run(self._model(), blend=0.0)
+    for rates in ([], [0.1] * 17, [0.1] * 32, [0.1] * 34, [float('nan')] * 33,
+                  [float('inf')] * 33, [[0.1]] * 33):
+      with self.subTest(rates_length=len(rates), first=rates[0] if rates else None):
+        model = self._model()
+        model.orientationRate.z = rates
+        ext, result = self._run(model, blend=0.8)
+        self.assertAlmostEqual(result.path_angle, baseline.path_angle)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
+
+  def test_healthy_model_blends_between_publication_ticks(self):
+    ext, _ = self._run(self._model(), blend=0.5)
+    self.assertFalse(ext.sm.updated['modelV2'])
+    self.assertAlmostEqual(ext.bp_kappa_cmd, 0.5 * (self.PLANNER_CURVATURE + self.MODEL_CURVATURE))
+
+  def test_stale_model_cannot_keep_bias_or_lane_change_scaling(self):
+    for lost_check in ('valid', 'alive'):
+      with self.subTest(lost_check=lost_check):
+        cp = _explorer_cp()
+        ext = _Harness(cp)
+        ext.model = self._model()
+        ext.enable_lane_positioning_ang = True
+        ext.custom_path_offset_ang = 0.3
+        ext.lane_centering_strength_ang = 1.0
+        cs = _CS(vEgoRaw=self.V_EGO, vEgo=self.V_EGO, yawRate=-self.PLANNER_CURVATURE * self.V_EGO)
+        for _ in range(50):
+          ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+        self.assertGreater(ext.lane_center_trim.correction, 0.0)
+        ext.model.meta.laneChangeState = 1
+        ext.model.meta.laneChangeDirection = 2
+        getattr(ext.sm, lost_check)['modelV2'] = False
+        ext.update_angle_strategy(_CC(), cs, _Actuators(self.PLANNER_CURVATURE), cp)
+        self.assertEqual(ext.lane_center_trim.correction, 0.0)
+        self.assertFalse(ext.lane_change)
+        self.assertAlmostEqual(ext.bp_kappa_cmd, self.PLANNER_CURVATURE)
 
 
 class TestPathAngleWireLimits(unittest.TestCase):

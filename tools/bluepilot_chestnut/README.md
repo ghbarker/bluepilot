@@ -137,12 +137,43 @@ reported speed squared. The final Python adapter can increase the donor's result
 to track measured curvature: in a synthetic 25 m/s CAN FD case it changed
 0.00385824 to 0.00435824 1/m. The older nominal cap is therefore not a final bound.
 
-One inherited behavior remains unqualified: after a 0.6-second driver steering
-press in a synthetic 25 m/s curve (curvature 0.003 1/m), the proactive stall blip
-produced six inactive frames, or 300 ms, followed by a ramp from zero. Its
-path-angle threshold does not establish straight driving. The behavior is
-unchanged; the vehicle's response and the reset's benefit require recorded-route,
-bench, and controlled vehicle evidence before fleet release.
+The September review also identified an unqualified automatic reset: after a
+0.6-second driver steering press in a synthetic 25 m/s curve (curvature 0.003 1/m),
+the proactive stall blip produced six inactive frames, or 300 ms, followed by a
+ramp from zero. Its path-angle threshold did not establish straight driving.
+The October corrections below remove this automatic interruption.
+
+### Driving-control corrections, 2026-10-03
+
+- Preserve the caller's acceleration request and existing brake slew limit.
+  The donor extension read the legacy lead `status` instead of current `present`,
+  could replace a no-lead brake request with zero, and applied an additional
+  0.1 m/s³ brake limiter. Healthy radar can now only add the existing gas caps;
+  absent/invalid/dead radar preserves the upstream request. Brake/precharge
+  hysteresis retains state, with the donor thresholds unchanged.
+- Remove automatic proactive/reactive steering-reset pulses. Driver-requested
+  human-turn override and all command/safety limits remain. This avoids imposed
+  steering gaps, but does not establish that genuine PSCM under-response after
+  driver intervention is solved. Tracking warnings remain active.
+- Preserve planner curvature when the optional model prediction is unavailable,
+  unhealthy, nonfinite or the wrong length. Previously an absent prediction was
+  blended as zero, halving the request at the default 0.5 blend. Cached unhealthy
+  model data also no longer supplies lane-change scaling or lane trim.
+- Bound optional lane trim against independently credible left/right lane lines
+  and road edges. A missing opposite line no longer discards the near boundary.
+  This only attenuates added trim, with the existing smoothing/rate limits; it
+  cannot repair an already-outside planner trajectory or guarantee clearance.
+- Distinguish Ford-reported near-limit, limit, driver-active limit and tracking
+  lag in alert wording. The detector, takeover cue, sound and escalation remain.
+  A phase-aligned detector using the final limited command still needs telemetry
+  and replay validation; this is not a claim that all false alerts are fixed.
+
+Local validation: 41 lane-trim tests and 18 isolated longitudinal tests passed.
+On Windows, source-level harnesses additionally passed 18 angle-control tests
+and 118 presenter cases using explicit test doubles for unavailable native
+bindings. These do not replace native CAN/safety/messaging, full-rlog replay,
+bench or controlled vehicle qualification. Run the Linux workflow below before
+considering release. No numerical steering or firmware safety limit was raised.
 
 ## Build and validation
 

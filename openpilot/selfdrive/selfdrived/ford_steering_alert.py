@@ -52,11 +52,16 @@ class FordSteeringAlert:
 
     displayed = copy.copy(alert)
     displayed.alert_text_1 = "Take Control"
+    # Report what the EPS says, rather than equating a tracking warning with
+    # exhausted physical steering authority. Status 3 is LimitWithDriverActive,
+    # which is distinct from status 2 (LimitReached).
+    driver_retained_tail = (not event_active and fresh(car_state_timestamp, now_ns)
+                            and CS.canValid and CS.steeringPressed)
     displayed.alert_text_2 = {
-      1: "Near Steering Limit",
-      2: "Steering Limit Reached",
-      3: "Steering Limit Reached",
-    }.get(limit, "Steering Not Keeping Up")
+      1: "Ford Reports Near Limit",
+      2: "Ford Reports Limit",
+      3: "Ford Limit: Driver Input",
+    }.get(limit, "Driver Steering Input" if driver_retained_tail else "Steering Not Keeping Up")
 
     tracking_recovered = False
     can_keep_quiet = False

@@ -110,15 +110,69 @@ def test_recorded_transient_recovers_without_extending_or_shortening_visual_life
   assert alert.__dict__ == original  # Never mutate the shared alert definition/entry.
 
 
-@pytest.mark.parametrize('status,text', [(1, 'Near Steering Limit'), (2, 'Steering Limit Reached'), (3, 'Steering Limit Reached')])
-def test_reported_limit_keeps_takeover_noise_even_after_event_clears(status, text):
+@pytest.mark.parametrize('mici', [False, True])
+@pytest.mark.parametrize('event_active', [False, True])
+@pytest.mark.parametrize('status,text', [(1, 'Ford Reports Near Limit'), (2, 'Ford Reports Limit'), (3, 'Ford Limit: Driver Input')])
+def test_reported_limit_keeps_takeover_noise_even_after_event_clears(status, text, event_active, mici):
   car, sm = inputs()
   recover(sm)
   sm['carStateBP'].fordSteeringLimit.status = status
-  presenter, alert = FordSteeringAlert(), warning()
+  presenter, alert = FordSteeringAlert(mici), warning()
+  original = copy.copy(alert).__dict__
   for frame in range(210):
-    shown = step(presenter, alert, car, sm, frame)
-    assert shown.alert_text_2 == text
+    shown = step(presenter, alert, car, sm, frame, event_active=event_active)
+    assert shown.alert_text_1.lower() == 'take control'
+    assert shown.alert_text_2 == (text.lower() if mici else text)
+    for key in ('audible_alert', 'priority', 'alert_status', 'alert_size', 'visual_alert', 'alert_type', 'event_type', 'duration'):
+      assert getattr(shown, key) == getattr(alert, key)
+  assert alert.__dict__ == original
+
+
+@pytest.mark.parametrize('condition', ['missing', 'invalid', 'stale', 'future', 'service_stale', 'inactive', 'unknown'])
+def test_unverifiable_ford_limit_is_not_presented_as_a_reported_limit(condition):
+  car, sm = inputs()
+  feedback = sm['carStateBP'].fordSteeringLimit
+  feedback.status = 2
+  if condition == 'missing':
+    feedback.dataAvailable = False
+  elif condition == 'invalid':
+    sm.valid['carStateBP'] = False
+  elif condition == 'stale':
+    feedback.sourceMonoTime = NOW - MAX_DATA_AGE_NS - 1
+  elif condition == 'future':
+    feedback.sourceMonoTime = NOW + 1
+  elif condition == 'service_stale':
+    sm.logMonoTime['carStateBP'] = NOW - MAX_DATA_AGE_NS - 1
+  elif condition == 'inactive':
+    feedback.controlStatus = 3
+  elif condition == 'unknown':
+    feedback.status = 4
+  alert = warning()
+  shown = step(FordSteeringAlert(), alert, car, sm, 0, event_active=True, refresh=False)
+  assert shown.alert_text_1 == 'Take Control'
+  assert shown.alert_text_2 == 'Steering Not Keeping Up'
+  assert shown.audible_alert == alert.audible_alert
+
+
+@pytest.mark.parametrize('mici', [False, True])
+@pytest.mark.parametrize('condition', ['driver', 'active_event', 'stale_car', 'invalid_car', 'ford_limit'])
+def test_driver_input_during_retained_warning_is_not_called_a_steering_limit(condition, mici):
+  car, sm = inputs()
+  recover(sm)
+  car.steeringPressed = True
+  if condition == 'invalid_car':
+    car.canValid = False
+  if condition == 'ford_limit':
+    sm['carStateBP'].fordSteeringLimit.status = 2
+  alert = warning()
+  presenter = FordSteeringAlert(mici)
+  for frame in range(160):
+    now = NOW + frame * 10_000_000
+    shown = step(presenter, alert, car, sm, frame, event_active=condition == 'active_event',
+                 car_timestamp=now - MAX_DATA_AGE_NS - 1 if condition == 'stale_car' else now)
+    text = {'driver': 'driver steering input', 'ford_limit': 'ford reports limit'}.get(condition, 'steering not keeping up')
+    assert shown.alert_text_1.lower() == 'take control'
+    assert shown.alert_text_2.lower() == text
     assert shown.audible_alert == alert.audible_alert
 
 

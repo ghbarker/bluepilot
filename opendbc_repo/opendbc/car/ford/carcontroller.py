@@ -246,8 +246,8 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
       v_ego_mph = CS.out.vEgo * 2.23694
 
       # BluePilot: longitudinal follow control via LongitudinalExt
-      # Classifies lead vehicle state (gaining/pacing/trailing) and applies gas/accel limits,
-      # rate-limited braking, and split brake/precharge hysteresis.
+      # Caps gas for healthy leads and applies brake/precharge hysteresis while
+      # preserving the upstream acceleration request and brake slew limit above.
       lng = LongitudinalExt.update(self, CC, CS, op_accel, op_gas, accel_due_to_pitch,
                                     v_ego_mph, stopping, target_speed)
 

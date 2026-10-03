@@ -2,21 +2,21 @@
 BluePilot Ford longitudinal follow control extension.
 
 Implements smoother highway following by classifying lead vehicle behavior
-(gaining, pacing, trailing) and applying gas/accel limits per state. Also
+(gaining, pacing, trailing) and applying gas limits per state. Also
 adds split brake/precharge hysteresis for smoother deceleration.
 
 Key features:
   - Speed deadband: BP long engages above 50 mph, disengages below 45 mph
   - Lead classification: gaining (closing in), pacing (matching), trailing (falling behind)
   - Gas limits per state: zero gas when gaining within 1.5s, capped gas when pacing
-  - Rate-limited accel changes to avoid stomping the brakes
-  - TTC-based emergency bypass for imminent collision scenarios
+  - Preserve the upstream acceleration request, including braking with no lead
+  - Fall back to upstream control when lead data is absent or unhealthy
   - Mutual exclusion: brake_actuate forces gas to INACTIVE_GAS
 """
 
 from collections import namedtuple
+from math import isfinite
 
-import numpy as np
 from numpy import clip
 
 from opendbc.car.ford.values import CarControllerParams
@@ -56,7 +56,6 @@ class LongitudinalExt:
 
     # Thresholds
     self.MAX_URBAN_SPEED_MPH = 45.0
-    self.following_accel_ROC = 0.002  # max accel change per scan in following mode
 
     # Brake hysteresis thresholds
     self.brake_actuate_target = -0.14   # engage brakes below this accel
@@ -64,6 +63,7 @@ class LongitudinalExt:
     self.precharge_actuate_target = -0.12
     self.precharge_actuate_release = -0.06
     self.op_brake_actuate_last = False
+    self.precharge_actuate_last = False
 
     # Toggles (updated from Params each frame)
     self.disable_BP_long_UI = False
@@ -94,158 +94,64 @@ class LongitudinalExt:
     Returns:
       LongitudinalResult namedtuple with final accel, gas, brake, precharge values.
     """
-    # Downhill compensation disable: clamp negative pitch to 0 (already applied by caller,
-    # but this is where the logic lives conceptually)
+    # The caller already applies the upstream brake slew limit. This extension must
+    # never relax that acceleration request, even when radar loses the lead.
+    accel = op_accel
+    gas = op_gas
+    control_active = CC.longActive and not CS.out.gasPressed and not CS.out.brakePressed
 
-    # Op brake actuate hysteresis
-    accel_pitch_compensated = op_accel + accel_due_to_pitch
-    op_brake_actuate = self.op_brake_actuate_last
-    if accel_pitch_compensated > self.brake_actuate_release or not CC.longActive:
-      op_brake_actuate = False
-    elif accel_pitch_compensated < self.brake_actuate_target:
-      op_brake_actuate = True
-
-    # Speed deadband: engage above 50 mph, disallow below 45 mph
-    bpSpeedTooSlow = v_ego_mph < self.MAX_URBAN_SPEED_MPH
-    bpSpeedHighEnough = v_ego_mph > self.MAX_URBAN_SPEED_MPH + 5
-    if bpSpeedHighEnough:
-      self.bpSpeedAllow = True
-    if bpSpeedTooSlow:
+    # Speed deadband: engage above 50 mph, disallow below 45 mph. Do not carry
+    # eligibility from a previous engagement or across driver intervention.
+    if not control_active or self.disable_BP_long_UI or v_ego_mph < self.MAX_URBAN_SPEED_MPH:
       self.bpSpeedAllow = False
+    elif v_ego_mph > self.MAX_URBAN_SPEED_MPH + 5:
+      self.bpSpeedAllow = True
 
-    # BP longitudinal follow control
-    if not self.disable_BP_long_UI:
-      # Read lead vehicle data from radarState (SubMaster is on self via mixin)
-      v_ego = max(CS.out.vEgo, 0.5)
-      lead_time_sec = 999.0
-      lead = None
-      v_rel = 0.0
-      v_lead = 0.0
+    bp_long_used = False
+    if control_active and not self.disable_BP_long_UI and self.bpSpeedAllow:
+      # SubMaster alive includes message-age checks. Do not require updated here:
+      # radar runs slower than this 50 Hz consumer, so healthy inter-message ticks
+      # should keep using the current lead. A valid but dead publisher must fall back.
+      if self.sm.valid.get('radarState', False) and self.sm.alive.get('radarState', False):
+        lead = getattr(self.sm['radarState'], 'leadOne', None)
+        # Current cereal uses present; support older donor schemas without letting
+        # their deprecated status override an explicit present=False.
+        lead_present = lead is not None and getattr(lead, 'present', getattr(lead, 'status', False))
+        if lead_present:
+          d_rel = float(getattr(lead, 'dRel', float('nan')))
+          v_rel = float(getattr(lead, 'vRel', float('nan')))
+          v_lead = float(getattr(lead, 'vLead', float('nan')))
+          if all(isfinite(v) for v in (d_rel, v_rel, v_lead, CS.out.vEgo)) and d_rel > 0 and v_lead * 2.23694 > 40.0:
+            bp_long_used = True
+            lead_time_sec = d_rel / max(CS.out.vEgo, 0.5)
+            # These are upper caps only. Preserve negative gas requests and the
+            # inactive sentinel instead of raising either to zero when following.
+            if gas != CarControllerParams.INACTIVE_GAS:
+              if v_rel < -0.1 and lead_time_sec < 1.5:
+                gas = min(gas, 0.0)
+              elif -0.1 <= v_rel <= 0.1:
+                gas = min(gas, max(0.0, 0.2 + accel_due_to_pitch))
 
-      if self.sm.valid.get('radarState', False):
-        rs = self.sm['radarState']
-        lead = getattr(rs, 'leadOne', None)
-        if lead is not None and getattr(lead, 'status', 0) != 1:
-          lead = None
-        if lead:
-          d_rel = float(getattr(lead, 'dRel', 0))
-          v_rel = float(getattr(lead, 'vRel', 0))
-          v_lead = float(getattr(lead, 'vLead', 0))
-          if d_rel > 0:
-            lead_time_sec = d_rel / v_ego
+    # Use the actual, pitch-compensated upstream demand for both latches. Keeping
+    # the returned state across frames preserves hysteresis inside the deadband,
+    # including transitions between BP gas caps and upstream-only operation.
+    accel_pitch_compensated = accel + accel_due_to_pitch
+    brake_actuate = self.op_brake_actuate_last
+    if not control_active or accel_pitch_compensated > self.brake_actuate_release:
+      brake_actuate = False
+    elif accel_pitch_compensated < self.brake_actuate_target:
+      brake_actuate = True
 
-      lead_time_sec = float(np.clip(lead_time_sec, 0.0, 999.0))
-      v_lead_mph = v_lead * 2.23694
-
-      # Time to collision
-      ttc_sec = 120.0
-      if lead:
-        d_rel = float(getattr(lead, 'dRel', 0))
-        v_rel = float(getattr(lead, 'vRel', 0))
-        if d_rel > 0 and v_rel < 0:
-          ttc_sec = d_rel / (-v_rel)
-        else:
-          ttc_sec = 60.0
-      ttc_sec = float(np.clip(ttc_sec, 0.2, 120.0))
-
-      # Classify lead state: gaining, pacing, or trailing
-      gaining = False
-      pacing = False
-      trailing = False
-      max_follow_gas = op_gas
-      min_follow_gas = op_gas
-      max_follow_accel = op_accel
-      min_follow_accel = op_accel
-      bp_brake_actuate = False
-      bp_precharge_actuate = False
-
-      if lead:
-        if v_rel < -0.1:
-          gaining = True
-        elif v_rel > 0.1:
-          trailing = True
-        else:
-          pacing = True
-
-      # Gas/accel limits per state
-      if gaining:
-        if lead_time_sec < 1.5:
-          max_follow_gas = 0.0  # within 1.5s and gaining — no gas
-          min_follow_gas = 0.0
-        else:
-          max_follow_gas = op_gas
-          min_follow_gas = op_gas
-        max_follow_accel = op_accel
-        min_follow_accel = op_accel
-
-      if pacing:
-        max_follow_gas = 0.2 + accel_due_to_pitch  # cap gas when pacing
-        min_follow_gas = 0.0
-        max_follow_accel = op_accel
-        min_follow_accel = op_accel
-
-      if trailing:
-        max_follow_gas = op_gas
-        min_follow_gas = op_gas
-        max_follow_accel = op_accel
-        min_follow_accel = op_accel
-
-      if lead is None:
-        max_follow_gas = op_gas
-        min_follow_gas = op_gas
-        max_follow_accel = 0
-        min_follow_accel = 0
-
-      # Apply BP gas and accel targets
-      bp_gas = clip(op_gas, min_follow_gas, max_follow_gas)
-      bp_accel = clip(op_accel, min_follow_accel, max_follow_accel)
-
-      # Rate limit downward accel changes (dampen initial brake hit)
-      # Skip rate limit if imminent collision risk
-      if ttc_sec > 8.0 and lead_time_sec > 0.5:
-        bp_accel = clip(bp_accel, self.bp_accel_last - self.following_accel_ROC, 999)
-
-      # BP brake/precharge hysteresis
-      if bp_accel < self.brake_actuate_target:
-        bp_brake_actuate = True
-      if bp_accel > self.brake_actuate_release:
-        bp_brake_actuate = False
-      if bp_accel < self.precharge_actuate_target:
-        bp_precharge_actuate = True
-      if bp_accel > self.precharge_actuate_release:
-        bp_precharge_actuate = False
-
-      # Decide whether to apply BP long
-      gasPressed = CS.out.gasPressed
-      brakePressed = CS.out.brakePressed
-      apply_bp_long = (not self.disable_BP_long_UI and self.bpSpeedAllow and
-                       not gasPressed and not brakePressed and
-                       (lead is None or v_lead_mph > 40.0))
-
-      if apply_bp_long and CC.longActive:
-        accel = bp_accel
-        gas = bp_gas
-        brake_actuate = bp_brake_actuate
-        precharge_actuate = bp_precharge_actuate
-      else:
-        accel = op_accel
-        gas = op_gas
-        brake_actuate = op_brake_actuate
-        precharge_actuate = op_brake_actuate
-
-      self.bp_gas_last = bp_gas
-      self.bp_accel_last = bp_accel
-      bp_long_used = apply_bp_long
-    else:
-      # BP long disabled — pass through stock values
-      accel = op_accel
-      gas = op_gas
-      brake_actuate = op_brake_actuate
-      precharge_actuate = op_brake_actuate
-      bp_long_used = False
+    precharge_actuate = self.precharge_actuate_last
+    if not control_active or accel_pitch_compensated > self.precharge_actuate_release:
+      precharge_actuate = False
+    elif not bp_long_used:
+      precharge_actuate = brake_actuate
+    elif accel_pitch_compensated < self.precharge_actuate_target:
+      precharge_actuate = True
 
     # Mutual exclusion: no brake and gas at the same time
-    if brake_actuate:
+    if brake_actuate or not CC.longActive:
       gas = CarControllerParams.INACTIVE_GAS
 
     # Clip to ford.h ACCDATA safety limits
@@ -255,7 +161,10 @@ class LongitudinalExt:
     accel_pred_send = CarControllerParams.INACTIVE_GAS
 
     self._bp_long_active_last = bp_long_used
-    self.op_brake_actuate_last = op_brake_actuate
+    self.op_brake_actuate_last = brake_actuate
+    self.precharge_actuate_last = precharge_actuate
+    self.bp_accel_last = accel
+    self.bp_gas_last = gas
 
     return LongitudinalResult(
       accel=accel,
