@@ -46,7 +46,7 @@ def angle_harness(angle_class, cp, cp_sp):
 
 @pytest.mark.parametrize("platform", [CAR.FORD_MUSTANG_MACH_E_MK1, CAR.FORD_F_150_MK14, CAR.FORD_EXPLORER_MK6])
 @pytest.mark.parametrize("positioning", [False, True])
-def test_disabled_autocal_preserves_sp_steering_commands(previous_angle_class, platform, positioning, tmp_path):
+def test_disabled_autocal_preserves_nominal_sp_steering_commands(previous_angle_class, platform, positioning, tmp_path):
   cp = CarInterface.get_non_essential_params(platform)
   cp_sp = CarInterface.get_non_essential_params_sp(cp, platform)
   before = angle_harness(previous_angle_class, cp, cp_sp)
@@ -59,22 +59,28 @@ def test_disabled_autocal_preserves_sp_steering_commands(previous_angle_class, p
   for ext in (before, after):
     ext.update_angle_params(params)
   assert not after.autocal_enabled
-  # Sequential reversals, gain bands, driver overrides, PSCM limits, inactive frames,
-  # and lane changes also exercise the retained shadow/reference and unwind fixes.
+  # Preserve the historical calibration-port comparison for healthy, non-stall
+  # trajectories: reversals, gain bands, PSCM limits, inactive frames and lane
+  # changes still exercise the retained shadow/reference and unwind behavior.
+  # Reset pulses and invalid/missing model fallback intentionally differ from
+  # BASE; the no-pulse and TestModelFallback cases in test_lateral_angle_ext.py
+  # test those behaviors directly. Do not make the reference implementation or
+  # equality assertions conditional on the new implementation's output.
   for i in range(1800):
     speed = (5., 13.11, 20., 28., 35.)[(i // 60) % 5]
-    requested = .018 * math.sin(i / 35.)
+    requested = .0015 * math.sin(i / 35.)
     model = _Model(lane_center_y=.2, model_y=.1, lane_change_state=1 if 300 <= i % 600 < 320 else 0)
     model.meta.laneChangeDirection = 1
     model.orientationRate.z = [speed * requested * (1 + j / 100.) for j in range(33)]
-    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-.0015 * speed * math.sin(i / 35.),
-             steeringPressed=80 <= i % 200 < 100, steeringAngleDeg=60. if 80 <= i % 200 < 100 else 0.)
+    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-requested * speed)
     cs.lat_ctl_lim_stat = 2 if 420 <= i % 600 < 440 else 0
     cc = _CC(latActive=i % 250 >= 10)
     for ext in (before, after):
       ext.model = model
     old = before.update_angle_strategy(cc, cs, _Actuators(requested), cp)
     new = after.update_angle_strategy(cc, cs, _Actuators(requested), cp)
+    assert not before.angle_stall_blip_active, (platform, positioning, i)
+    assert before.stall_blip_frames_left == 0, (platform, positioning, i)
     assert new == old, (platform, positioning, i, new, old)
     assert after.bp_kappa_cmd == before.bp_kappa_cmd
   assert params.get("FordLowSpeedFactor_ang") == 1.12

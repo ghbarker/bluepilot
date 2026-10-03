@@ -155,6 +155,11 @@ The October corrections below remove this automatic interruption.
   human-turn override and all command/safety limits remain. This avoids imposed
   steering gaps, but does not establish that genuine PSCM under-response after
   driver intervention is solved. Tracking warnings remain active.
+  This is an experimental tradeoff: the donor comments report that mode-0 pulses
+  restored response after driver input. Upstream also acknowledged that anti-stall
+  could unwind steering in curves ([PR #176](https://github.com/BluePilotDev/bluepilot/pull/176)).
+  Qualification must compare post-override recovery as well as the removed gaps;
+  passing command/safety tests alone does not resolve that vehicle behavior.
 - Preserve planner curvature when the optional model prediction is unavailable,
   unhealthy, nonfinite or the wrong length. Previously an absent prediction was
   blended as zero, halving the request at the default 0.5 blend. Cached unhealthy
