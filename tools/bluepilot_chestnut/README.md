@@ -141,7 +141,9 @@ The September review also identified an unqualified automatic reset: after a
 0.6-second driver steering press in a synthetic 25 m/s curve (curvature 0.003 1/m),
 the proactive stall blip produced six inactive frames, or 300 ms, followed by a
 ramp from zero. Its path-angle threshold did not establish straight driving.
-The October corrections below remove this automatic interruption.
+The initial October draft removed automatic recovery entirely. The merge scope
+instead preserves the baseline recovery mechanism and narrows its reactive
+trigger, because removal also discards the reported post-override recovery.
 
 ### Driving-control corrections, 2026-10-03
 
@@ -151,15 +153,17 @@ The October corrections below remove this automatic interruption.
   0.1 m/s³ brake limiter. Healthy radar can now only add the existing gas caps;
   absent/invalid/dead radar preserves the upstream request. Brake/precharge
   hysteresis retains state, with the donor thresholds unchanged.
-- Remove automatic proactive/reactive steering-reset pulses. Driver-requested
-  human-turn override and all command/safety limits remain. This avoids imposed
-  steering gaps, but does not establish that genuine PSCM under-response after
-  driver intervention is solved. Tracking warnings remain active.
-  This is an experimental tradeoff: the donor comments report that mode-0 pulses
-  restored response after driver input. Upstream also acknowledged that anti-stall
-  could unwind steering in curves ([PR #176](https://github.com/BluePilotDev/bluepilot/pull/176)).
-  Qualification must compare post-override recovery as well as the removed gaps;
-  passing command/safety tests alone does not resolve that vehicle behavior.
+- Preserve the baseline proactive/reactive recovery and driver-requested
+  human-turn override. Adapt upstream [PR #148](https://github.com/BluePilotDev/bluepilot/pull/148)
+  so the reactive detector also requires measured curvature below 65% of demand.
+  This narrows an absolute-gap trigger that can mistake curve-entry lag for a
+  stall. It does not change proactive hand-off pulses, prove recovery, or remove
+  every steering interruption. All command/safety limits remain unchanged.
+  The existing small-path-angle guard does not establish straight driving;
+  upstream acknowledged unwanted unwinding in curves in
+  [PR #176](https://github.com/BluePilotDev/bluepilot/pull/176). Fresh applied-command
+  diagnostics and vehicle qualification are still required for a redesigned
+  hand-off state machine. Tracking warnings remain active.
 - Preserve planner curvature when the optional model prediction is unavailable,
   unhealthy, nonfinite or the wrong length. Previously an absent prediction was
   blended as zero, halving the request at the default 0.5 blend. Cached unhealthy
@@ -174,11 +178,34 @@ The October corrections below remove this automatic interruption.
   and replay validation; this is not a claim that all false alerts are fixed.
 
 Local validation: 41 lane-trim tests and 18 isolated longitudinal tests passed.
-On Windows, source-level harnesses additionally passed 18 angle-control tests
+On Windows, source-level harnesses additionally passed 22 angle-control tests
 and 118 presenter cases using explicit test doubles for unavailable native
 bindings. These do not replace native CAN/safety/messaging, full-rlog replay,
 bench or controlled vehicle qualification. Run the Linux workflow below before
-considering release. No numerical steering or firmware safety limit was raised.
+considering release. Recovery comparisons also matched 8,000 command frames in
+20 scenarios against the immutable SP-BPDEV baseline, including recovery pulses.
+No numerical steering or firmware safety limit was raised.
+
+### Steering diagnostics and portal integration, 2026-10-03
+
+Append-only steering diagnostics record the final packed Ford request after
+controller neutralization, including source time, controller frame, wire mode,
+path angle and curvature. These describe the request queued for transmission;
+they do not assert that Panda accepted it or that the PSCM executed it. Compare
+them with independent safety and Ford feedback. Retain 20 Hz command snapshots
+in qlogs so an interleaved sample cannot hide a steering command.
+
+Fresh EPAS telemetry carries estimated steering-module current, voltage and
+status with its original CAN timestamp and explicit validity. The DBC describes
+the current as a filtered module estimate for BMS use; it is not a direct motor
+torque measurement. Missing/stale values must not be interpreted as zero effort.
+These diagnostics do not feed the control or warning decisions.
+
+Adapt the portal's parked-state checks to the current `IsOffroad` parameter,
+assuming onroad when state is missing or cannot be read. Pass the missing state
+callback to the status monitor's power-save check and recheck before restoration.
+Existing endpoint permissions and sysfs operations are preserved. Independent
+manager/power operations are not made atomic by the additional state check.
 
 ### Sound and theme recovery, 2026-10-03
 

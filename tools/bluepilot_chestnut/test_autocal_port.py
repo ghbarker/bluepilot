@@ -62,8 +62,8 @@ def test_disabled_autocal_preserves_nominal_sp_steering_commands(previous_angle_
   # Preserve the historical calibration-port comparison for healthy, non-stall
   # trajectories: reversals, gain bands, PSCM limits, inactive frames and lane
   # changes still exercise the retained shadow/reference and unwind behavior.
-  # Reset pulses and invalid/missing model fallback intentionally differ from
-  # BASE; the no-pulse and TestModelFallback cases in test_lateral_angle_ext.py
+  # Reactive recovery admission and invalid/missing model fallback differ from
+  # BASE; TestStallRecovery and TestModelFallback in test_lateral_angle_ext.py
   # test those behaviors directly. Do not make the reference implementation or
   # equality assertions conditional on the new implementation's output.
   for i in range(1800):
@@ -85,6 +85,48 @@ def test_disabled_autocal_preserves_nominal_sp_steering_commands(previous_angle_
     assert after.bp_kappa_cmd == before.bp_kappa_cmd
   assert params.get("FordLowSpeedFactor_ang") == 1.12
   assert params.get("FordHighSpeedFactor_ang") == .94
+
+
+@pytest.fixture(scope="module")
+def previous_recovery_class():
+  # Last SP-BPDEV baseline before this driving review. Preserve its recovery
+  # behavior outside the intentionally narrower fractional admission gate.
+  base = "5f3f85f240d80571a73e0f59e804c1ba2d16d2f1"
+  source = subprocess.check_output(["git", "show", f"{base}:{ANGLE}"], cwd=ROOT, text=True)
+  ns = {"__name__": "sp_angle_before_fractional_recovery"}
+  exec(compile(source, ANGLE + "@" + base, "exec"), ns)
+  return ns["LateralAngleExt"]
+
+
+@pytest.mark.parametrize("direction", [-1, 1])
+@pytest.mark.parametrize("speed", [5., 9., 9.1, 15., 30.])
+@pytest.mark.parametrize("driver_handoff", [False, True])
+def test_recovery_matches_sp_baseline_outside_fractional_gate(previous_recovery_class, direction, speed, driver_handoff):
+  cp = CarInterface.get_non_essential_params(CAR.FORD_MUSTANG_MACH_E_MK1)
+  cp_sp = CarInterface.get_non_essential_params_sp(cp, cp.carFingerprint)
+  before = angle_harness(previous_recovery_class, cp, cp_sp)
+  after = angle_harness(LateralAngleExt, cp, cp_sp)
+  # A severe persistent deficit passes both the old absolute-gap predicate and
+  # the new fraction predicate. Use yaw for a deterministic measured curvature;
+  # native pinion selection/packing remain covered by test_lateral_angle_ext.
+  for ext in (before, after):
+    ext.bp_pinion_curvature_enabled = False
+    ext.model = _Model()
+    ext.model.orientationRate.z = [direction * .008 * speed] * 33
+  cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * .0005 * speed, steeringAngleDeg=direction * 5.)
+  active_frames = 0
+  for i in range(400):
+    cs.out.steeringPressed = driver_handoff and 20 <= i < 40
+    cc = _CC(latActive=i >= 10)
+    old = before.update_angle_strategy(cc, cs, _Actuators(direction * .008), cp)
+    new = after.update_angle_strategy(cc, cs, _Actuators(direction * .008), cp)
+    assert new == old, (i, new, old)
+    for name in ("angle_stall_blip_active", "stall_blip_frames_left", "stall_blip_hold_s",
+                 "stall_blip_cooldown_s", "stall_blip_count", "press_timer_s", "bp_kappa_cmd"):
+      assert getattr(after, name) == getattr(before, name), (i, name)
+    active_frames += after.angle_stall_blip_active
+  if 9. < speed <= 15.:
+    assert active_frames >= 6  # equality must actually exercise a recovery pulse
 
 
 def test_real_lateral_delay_message_controls_calibration_admission(tmp_path):

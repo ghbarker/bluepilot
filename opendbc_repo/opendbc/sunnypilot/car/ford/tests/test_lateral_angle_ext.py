@@ -200,14 +200,14 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertEqual(result.path_angle, 0.0)
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
-  def test_legacy_stall_pulse_state_does_not_disable_steering(self):
-    # Automatic reset pulses were removed: a queued legacy pulse must not create
-    # neutral steering frames while lateral control is otherwise active.
+  def test_stall_pulse_publishes_measured(self):
     self.ext.stall_blip_frames_left = 3
     result = self._update()
-    self.assertFalse(self.ext.angle_stall_blip_active)
-    self.assertNotEqual(result.path_angle, 0.0)
-    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured + CarControllerParams.CURVATURE_ERROR)
+    self.assertTrue(self.ext.angle_stall_blip_active)
+    self.assertEqual(result.path_angle, 0.0)
+    self.assertEqual(result.ramp_type, 0)
+    self.assertEqual(self.ext.stall_blip_frames_left, 2)
+    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
   def test_pressed_publishes_measured(self):
     self.cs.out.steeringPressed = True
@@ -226,60 +226,115 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertTrue(self.ext.bp_curvature_deviation_limited)
 
 
-class TestContinuousSteering(unittest.TestCase):
-  """Lag/press release must not manufacture 300 ms neutral-control intervals.
+class TestStallRecovery(unittest.TestCase):
+  """Retain SP recovery while narrowing its reactive trigger with PR #148.
 
-  These verify command continuity, not that the physical PSCM regains authority.
+  These are command/state checks, not proof that a pulse restores physical authority.
   """
 
-  def _scenario(self, speed, direction, with_model):
+  def _scenario(self, desired=0.014, fraction=0.2, speed=10., direction=1):
     cp = _explorer_cp()
     ext = _Harness(cp)
-    # Small but nonzero measured turn, with a persistent larger upstream request.
-    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * 0.0005 * speed)
-    actuators = _Actuators(curvature=direction * 0.008)
-    if with_model:
-      ext.model = _Model()
-      ext.model.orientationRate.z = [actuators.curvature * speed] * 33
-    else:
-      ext.model = None
+    # A permitted user gain keeps path_angle under the separate 0.10 rad gate.
+    # Otherwise that gate can mask a broken fractional test on deep demands.
+    ext.low_speed_curv_factor = 0.5
+    ext.model = _Model()
+    ext.model.orientationRate.z = [direction * desired * speed] * 33
+    cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * desired * fraction * speed)
+    actuators = _Actuators(direction * desired)
     return cp, ext, cs, actuators
 
-  def test_persistent_tracking_gap_never_triggers_neutral_pulse(self):
-    for speed in (5., 9., 9.1, 15., 30., 40.):
+  def test_curve_entry_fraction_does_not_schedule_reactive_reset(self):
+    for fraction in (0.65, 0.72):
       for direction in (-1, 1):
-        for with_model in (False, True):
-          with self.subTest(speed=speed, direction=direction, with_model=with_model):
-            cp, ext, cs, actuators = self._scenario(speed, direction, with_model)
-            for _ in range(200):
-              result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
-              self.assertFalse(ext.angle_stall_blip_active)
-              self.assertFalse(ext.angle_human_turn_active)
-              self.assertGreater(result.path_angle * direction, 0.0)
-            if speed > 9.:
-              self.assertTrue(ext.bp_curvature_deviation_limited)
+        with self.subTest(fraction=fraction, direction=direction):
+          cp, ext, cs, actuators = self._scenario(desired=0.015, fraction=fraction, direction=direction)
+          for _ in range(80):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            self.assertTrue(ext.bp_curvature_deviation_limited)
+            self.assertLess(abs(result.path_angle), 0.10)
+            self.assertFalse(ext.angle_stall_blip_active)
+            self.assertEqual(ext.stall_blip_frames_left, 0)
+          self.assertEqual(ext.stall_blip_count, 0)
+          self.assertEqual(ext.stall_blip_hold_s, 0.)
 
-  def test_sustained_driver_press_release_keeps_requested_direction(self):
-    for speed in (5., 15., 30.):
+  def test_true_fractional_stall_retains_six_frame_recovery(self):
+    for fraction in (0., 0.2, 0.649):
       for direction in (-1, 1):
-        for with_model in (False, True):
-          with self.subTest(speed=speed, direction=direction, with_model=with_model):
-            cp, ext, cs, actuators = self._scenario(speed, direction, with_model)
-            cs.out.steeringPressed = True
-            cs.out.steeringAngleDeg = direction * 5.0  # below intentional human-turn threshold
-            for _ in range(20):
-              ext.update_angle_strategy(_CC(), cs, actuators, cp)
-            cs.out.steeringPressed = False
-            for _ in range(20):
-              result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
-              self.assertFalse(ext.angle_stall_blip_active)
-              self.assertFalse(ext.angle_human_turn_active)
-              self.assertGreater(result.path_angle * direction, 0.0)
+        with self.subTest(fraction=fraction, direction=direction):
+          cp, ext, cs, actuators = self._scenario(fraction=fraction, direction=direction)
+          for _ in range(20):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            if ext.stall_blip_frames_left:
+              break
+          self.assertEqual(ext.stall_blip_count, 1)
+          self.assertEqual(ext.stall_blip_frames_left, 6)
+          self.assertGreater(result.path_angle * direction, 0.)
+          for frames_left in range(5, -1, -1):
+            result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            self.assertTrue(ext.angle_stall_blip_active)
+            self.assertEqual(ext.stall_blip_frames_left, frames_left)
+            self.assertEqual(result.path_angle, 0.)
+            self.assertEqual(result.ramp_type, 0)
+            self.assertAlmostEqual(ext.bp_kappa_cmd, ext.get_current_curvature(cs))
+          self.assertEqual(ext.stall_blip_cooldown_s, 2.)
+          result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+          self.assertFalse(ext.angle_stall_blip_active)
+          self.assertGreater(result.path_angle * direction, 0.)
+          self.assertLessEqual(abs(result.path_angle), 0.055)
+
+  def test_proactive_sustained_press_release_is_unchanged(self):
+    cp, ext, cs, actuators = self._scenario(desired=0.002, fraction=1.)
+    cs.out.steeringPressed = True
+    cs.out.steeringAngleDeg = 5.0
+    for _ in range(20):
+      ext.update_angle_strategy(_CC(), cs, actuators, cp)
+    cs.out.steeringPressed = False
+    for frames_left in range(5, -1, -1):
+      result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+      self.assertTrue(ext.angle_stall_blip_active)
+      self.assertEqual(ext.stall_blip_frames_left, frames_left)
+      self.assertEqual(result.path_angle, 0.)
+    self.assertEqual(ext.stall_blip_count, 0)  # proactive pulses do not count as a reactive episode
+
+  def test_reactive_speed_driver_and_lane_change_gates_remain(self):
+    for blocked_by in ('speed', 'driver', 'lane_change'):
+      with self.subTest(blocked_by=blocked_by):
+        cp, ext, cs, actuators = self._scenario(speed=9. if blocked_by == 'speed' else 10.)
+        cs.out.steeringPressed = blocked_by == 'driver'
+        ext.model.meta.laneChangeState = 1 if blocked_by == 'lane_change' else 0
+        for _ in range(80):
+          ext.update_angle_strategy(_CC(), cs, actuators, cp)
+          self.assertFalse(ext.angle_stall_blip_active)
+        self.assertEqual(ext.stall_blip_count, 0)
+        self.assertEqual(ext.stall_blip_frames_left, 0)
+
+  def test_reactive_count_remains_bounded(self):
+    cp, ext, cs, actuators = self._scenario()
+    active_frames = 0
+    for _ in range(500):
+      ext.update_angle_strategy(_CC(), cs, actuators, cp)
+      active_frames += ext.angle_stall_blip_active
+    self.assertEqual(ext.stall_blip_count, 3)
+    self.assertEqual(active_frames, 18)
+
+  def test_inactive_clears_pending_recovery(self):
+    cp, ext, cs, actuators = self._scenario()
+    ext.stall_blip_frames_left = 6
+    ext.stall_blip_hold_s = 0.4
+    ext.stall_blip_count = 2
+    ext.press_timer_s = 1.
+    ext.update_angle_strategy(_CC(latActive=False), cs, actuators, cp)
+    self.assertFalse(ext.angle_stall_blip_active)
+    self.assertEqual(ext.stall_blip_frames_left, 0)
+    self.assertEqual(ext.stall_blip_hold_s, 0.)
+    self.assertEqual(ext.stall_blip_count, 0)
+    self.assertEqual(ext.press_timer_s, 0.)
 
   def test_deliberate_human_turn_still_yields_and_then_resumes(self):
     for direction in (-1, 1):
       with self.subTest(direction=direction):
-        cp, ext, cs, actuators = self._scenario(15., direction, True)
+        cp, ext, cs, actuators = self._scenario(direction=direction)
         cs.out.steeringPressed = True
         cs.out.steeringAngleDeg = direction * 5.0
         ext.update_angle_strategy(_CC(), cs, actuators, cp)

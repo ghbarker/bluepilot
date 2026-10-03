@@ -6,23 +6,26 @@ Network interface detection and connection type management
 
 import logging
 
-from bluepilot.backend.utils.params_fallback import get_params_with_defaults
+from bluepilot.backend.utils.params_fallback import get_params_with_defaults, is_explicitly_offroad
 
 logger = logging.getLogger(__name__)
 
 params = get_params_with_defaults({
-    "IsOnRoad": False,
+    "IsOffroad": "0",
     "BPPortalPort": "8088",
     "EnableWebRoutesServer": True,
 })
 
 
 def is_onroad():
-    """Check if vehicle is currently driving"""
+    """Apply onroad restrictions unless the manager explicitly reports offroad."""
     try:
-        return params.get_bool("IsOnRoad")
-    except:
-        return False
+        # This branch declares IsOffroad, not IsOnroad. Params.get returns a
+        # typed BOOL; the portal fallback may return bytes or a string instead.
+        return not is_explicitly_offroad(params.get("IsOffroad"))
+    except Exception:
+        logger.warning("Could not read IsOffroad, assuming onroad", exc_info=True)
+        return True
 
 
 def should_server_run():

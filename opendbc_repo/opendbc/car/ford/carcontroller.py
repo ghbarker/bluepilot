@@ -15,6 +15,7 @@ from opendbc.sunnypilot.car.ford.hud_ext import HudExt
 from opendbc.sunnypilot.car.ford import fordcan_ext
 from opendbc.sunnypilot.car.ford.chestnut_compat import limit_curvature_for_chestnut
 from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementInterface
+from opendbc.sunnypilot.car.ford.steering_diagnostics import steering_command_snapshot
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -53,6 +54,7 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
     self.accel = 0.0
     self.gas = 0.0
     self.last_button_frame = 0  # BluePilot: ICBM button press tracking
+    self.fordSteeringCommand = {"dataAvailable": False}
     # Note: main_on_last, lkas_enabled_last, steer_alert_last, lead_distance_bars_last,
     # distance_bar_frame are initialized by HudExt.__init__() above
 
@@ -187,6 +189,11 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
             self.packer, self.CAN, lat_active, lat.ramp_type, lat.precision_type,
             -lat.path_offset, -lat.path_angle, -lat.apply_curvature, -lat.curvature_rate
           ))
+
+      # Capture the final packed steering packet after inactive neutralization,
+      # before the LKA insertion below can change list positions. Persist it at
+      # 100 Hz with its original 20 Hz frame/time; this is not EPS acceptance.
+      self.fordSteeringCommand = steering_command_snapshot(can_sends[-1], self.frame, now_nanos)
 
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:

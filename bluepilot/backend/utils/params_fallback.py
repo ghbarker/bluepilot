@@ -10,6 +10,11 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 
+def is_explicitly_offroad(value):
+    """Accept the typed Params BOOL or the portal fallback's stored representation."""
+    return value is True or value in (b"1", "1")
+
+
 def get_params_with_defaults(defaults: Dict[str, Any] | None = None):
     """Return openpilot Params when available, otherwise a lightweight mock."""
     defaults = defaults or {}
