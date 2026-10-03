@@ -175,6 +175,30 @@ bindings. These do not replace native CAN/safety/messaging, full-rlog replay,
 bench or controlled vehicle qualification. Run the Linux workflow below before
 considering release. No numerical steering or firmware safety limit was raised.
 
+### Sound and theme recovery, 2026-10-03
+
+Sound startup retries now cover both opening and starting the output stream.
+Invalid/empty/truncated theme WAVs fall back to stock sounds before reaching the
+callback. Reloads build the complete stock/theme/custom bank before publishing
+it, and short locked sections synchronize alert/cursor changes with playback;
+asset reads remain outside the callback lock.
+
+Theme colors and scene/season containers are validated before rendering. A
+UI-only activation marker covers asset loading and the first scene rendering
+period, including Rad Racer. If activation crashes, the next UI startup clears
+manual/automatic theme selection and uses the plain UI, preserving theme files.
+This targets activation/boot loops; crashes after successful activation still
+need diagnostics. A failed persistent reset keeps the marker and uses an
+in-memory fallback, so another startup retries recovery.
+
+34 UI source-level tests passed locally, including existing bundled-scene
+parsing/simulation, invalid assets, failed stream startup, theme recovery and
+concurrent alert/playback changes. Native PortAudio/GL/device behavior was not
+tested locally. The Linux workflow includes both new sound regression files
+and the existing base sound tests. The available drive logs did not record a
+sound/theme crash; these fixes address reproducible code failure paths without
+claiming a confirmed root cause for every reported reboot.
+
 ## Build and validation
 
 ### Owner review, 2026-09-19

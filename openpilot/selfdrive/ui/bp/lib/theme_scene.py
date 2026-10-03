@@ -312,16 +312,20 @@ def load_scene_spec(path, colors=None) -> SceneSpec | None:
   try:
     with open(path) as f:
       d = json.load(f)
-    if int(d.get("version", 0)) != 1:
+    if not isinstance(d, dict) or int(d.get("version", 0)) != 1:
       return None
-  except (OSError, ValueError, TypeError):
+  except (OSError, ValueError, TypeError, OverflowError):
     return None
 
   sky = d.get("sky") or {}
+  foreground = d.get("foreground") or {}
+  layers = d.get("layers") or []
+  if not isinstance(sky, dict) or not isinstance(foreground, dict) or not isinstance(layers, list):
+    return None
   sky_tint = int(_clampf(sky.get("camera_tint_alpha", 40), 0, 120, 40))
   particles, bursts, decor, backdrops, balldrops, heroes = [], [], [], [], [], []
   total = 0
-  for layer in (d.get("layers") or []):
+  for layer in layers:
     if not isinstance(layer, dict):
       continue
     try:
@@ -348,9 +352,9 @@ def load_scene_spec(path, colors=None) -> SceneSpec | None:
       elif t == "hero":
         if len(heroes) < 1:
           heroes.append(_HeroLayer(layer, colors))
-    except (ValueError, TypeError, KeyError):
+    except (ValueError, TypeError, KeyError, OverflowError):
       continue  # drop invalid layer, keep the rest
-  return SceneSpec(sky_tint, particles, bursts, decor, d.get("foreground") or {}, backdrops, balldrops, heroes)
+  return SceneSpec(sky_tint, particles, bursts, decor, foreground, backdrops, balldrops, heroes)
 
 
 # ---------------------------------------------------------------------------- scene kinds
@@ -672,6 +676,10 @@ def active_scene() -> SceneBase | None:
   selection is re-checked at most every _POLL_S; scenes are rebuilt (and reseeded)
   only when the selection changes."""
   import time
+  guard = theme_pack._ui_recovery
+  if guard is not None and guard.disabled:
+    _scene_cache.update(key=None, scene=None, checked_at=0.0)
+    return None
   now = time.monotonic()
   if now - _scene_cache["checked_at"] < _POLL_S:
     return _scene_cache["scene"]
@@ -684,6 +692,9 @@ def active_scene() -> SceneBase | None:
     key = pack.name if pack else None
 
   if key != _scene_cache["key"]:
+    if guard is not None and not guard.begin_render(key):
+      _scene_cache.update(key=None, scene=None)
+      return None
     _scene_cache["key"] = key
     scene = None
     if key == theme_pack.RAD_RACER:

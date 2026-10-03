@@ -50,9 +50,15 @@ class ThemePack:
       try:
         with open(colors_path) as f:
           data = json.load(f)
+        if not isinstance(data, dict):
+          return
         for key, v in data.items():
-          self.colors[key] = (int(v["red"]), int(v["green"]), int(v["blue"]), int(v["alpha"]))
-      except (OSError, ValueError, KeyError, TypeError):
+          if not isinstance(v, dict):
+            continue
+          color = tuple(int(v[c]) for c in ("red", "green", "blue", "alpha"))
+          if all(0 <= channel <= 255 for channel in color):
+            self.colors[key] = color
+      except (OSError, ValueError, KeyError, TypeError, OverflowError):
         self.colors = {}
 
   def sound_path(self, filename: str) -> str | None:
@@ -93,7 +99,11 @@ def list_packs() -> list[str]:
   names: list[str] = []
   for base in (BUNDLED_DIR, USER_DIR):
     if os.path.isdir(base):
-      for entry in sorted(os.listdir(base)):
+      try:
+        entries = sorted(os.listdir(base))
+      except OSError:
+        continue
+      for entry in entries:
         if entry not in names and os.path.isdir(os.path.join(base, entry)):
           names.append(entry)
   return names
@@ -152,15 +162,19 @@ def _season_window(root: str, year: int) -> tuple[datetime.date, datetime.date] 
   try:
     with open(path) as f:
       data = json.load(f)
+    if not isinstance(data, dict):
+      return None
     anchor = data.get("anchor")
     if anchor is not None:
       day = _ANCHORS[anchor](year)
       return (day + datetime.timedelta(days=int(data.get("offset_start", 0))),
               day + datetime.timedelta(days=int(data.get("offset_end", 0))))
+    if not isinstance(data.get("start"), str) or not isinstance(data.get("end"), str):
+      return None
     sm, sd = (int(v) for v in data["start"].split("-"))
     em, ed = (int(v) for v in data["end"].split("-"))
     return datetime.date(year, sm, sd), datetime.date(year, em, ed)
-  except (OSError, ValueError, KeyError, TypeError):
+  except (OSError, ValueError, KeyError, TypeError, OverflowError):
     return None
 
 
@@ -201,12 +215,18 @@ def _effective_name(params: Params | None = None) -> str:
   Outside holiday windows (or if the seasonal pack is missing on disk) the manual
   selection — including Off and Rad Racer — applies unchanged.
   """
+  if _ui_recovery is not None and _ui_recovery.disabled:
+    return ""
   p = params or Params()
   name = _param_value(p)
   if p.get_bool(AUTO_PARAM_KEY):
     season = seasonal_pack()
     if season and _resolve(season) is not None:
-      return season
+      name = season
+  if name.lower() == RAD_RACER:
+    name = RAD_RACER
+  if _ui_recovery is not None and not _ui_recovery.begin(name):
+    return ""
   return name
 
 
@@ -237,10 +257,29 @@ def selector_entries() -> list[tuple[str, str]]:
 
 
 _cache: dict = {"checked_at": 0.0, "name": None, "pack": None}
+_ui_recovery = None  # configured only by UI main, never by soundd
+
+
+def initialize_ui_recovery():
+  from pathlib import Path
+  from openpilot.common.swaglog import cloudlog
+  from openpilot.selfdrive.ui.bp.lib.theme_recovery import ThemeRecovery
+  global _ui_recovery
+  params = Params()
+  # Beside the parameter prefix, not inside its managed key/value directory.
+  prefix = Path(params.get_param_path())
+  _ui_recovery = ThemeRecovery(params, prefix.with_name(prefix.name + "_bp_theme_activation"), cloudlog)
+  # Arm before the initial auto-seasonal directory scan as well as before
+  # selected asset loading. The final effective name replaces this once known.
+  _ui_recovery.begin(_param_value(params) or ("auto" if params.get_bool(AUTO_PARAM_KEY) else ""))
+  _cache.update(checked_at=0.0, name=None, pack=None)
 
 
 def get_active_pack(force: bool = False) -> ThemePack | None:
   """The currently selected pack, or None. Re-reads the param at most every 2s."""
+  if _ui_recovery is not None and _ui_recovery.disabled:
+    _cache.update(checked_at=0.0, name=None, pack=None)
+    return None
   now = time.monotonic()
   if not force and now - _cache["checked_at"] < _PARAM_POLL_S:
     return _cache["pack"]

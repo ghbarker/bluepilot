@@ -51,6 +51,9 @@ jobs:
             opendbc_repo/opendbc/sunnypilot/car/tests/test_car_list.py \
             openpilot/common/tests/test_params.py \
             openpilot/selfdrive/ui/bp/tests \
+            openpilot/selfdrive/ui/tests/test_soundd.py \
+            openpilot/selfdrive/ui/tests/test_soundd_robustness.py \
+            openpilot/selfdrive/ui/tests/test_soundd_synchronization.py \
             openpilot/selfdrive/selfdrived/tests/test_alertmanager.py \
             openpilot/selfdrive/selfdrived/tests/test_alerts.py \
             openpilot/sunnypilot/system/tests/test_params_migration.py \
