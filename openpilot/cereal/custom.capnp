@@ -596,6 +596,16 @@ struct CarStateBP @0xb057204d7deadf3f {
   brakeLightStatus @2 :BrakeLightStatus;
   fordSteeringLimit @3 :FordSteeringLimit;
   fordEps @4 :FordEps;
+  fordPscmStatus @5 :FordPscmStatus;
+
+  struct FordPscmStatus {
+    dataAvailable @0 :Bool;  # fresh CAN-FD source and existing control-path CAN validity
+    laActAvail @1 :UInt8;  # raw LaActAvail_D_Actl feature status (0..3), not spare steering authority
+    laActDeny @2 :Bool;  # raw LaActDeny_B_Actl
+    laHandsOff @3 :Bool;  # raw LaHandsOff_B_Actl
+    tjaHandsOnConfidence @4 :Bool;  # raw TjaHandsOnCnfdnc_B_Est
+    sourceMonoTime @5 :UInt64;  # actual Lane_Assist_Data3_FD1 CAN reception timestamp
+  }
 
   struct FordEps {
     dataAvailable @0 :Bool;  # fresh CAN, valid parser and documented signal values

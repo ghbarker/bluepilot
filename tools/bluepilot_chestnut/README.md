@@ -207,6 +207,22 @@ callback to the status monitor's power-save check and recheck before restoration
 Existing endpoint permissions and sysfs operations are preserved. Independent
 manager/power operations are not made atomic by the additional state check.
 
+### Additional drive-feedback diagnostics, 2026-10-03
+
+The MICI lateral debug panel shows fresh steering-delay and angle-calibration
+status, adapted from upstream #180/#172 to the current message schema. Missing,
+stale or malformed telemetry is labeled unavailable or default, never live.
+These displays do not change calibration factors or steering commands.
+
+The CAN-FD-only `carStateBP.fordPscmStatus` field records raw PSCM feature status,
+denial, hands-off estimate and hands-on-confidence bits from the already-parsed
+`Lane_Assist_Data3_FD1` message. Its original CAN timestamp must be no more than
+150 ms old, and the publisher applies existing CAN validity without re-reading
+the parser's stateful validity getter. No additional message subscription is
+introduced. These fields are diagnostic context, not a physical steering-capacity
+measurement or a reason to suppress warnings. No controller, limit, recovery,
+engagement or alert policy changes are included in this follow-up.
+
 ### Sound and theme recovery, 2026-10-03
 
 Sound startup retries now cover both opening and starting the output stream.
