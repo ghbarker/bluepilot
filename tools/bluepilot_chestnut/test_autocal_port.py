@@ -100,8 +100,7 @@ def previous_recovery_class():
 
 @pytest.mark.parametrize("direction", [-1, 1])
 @pytest.mark.parametrize("speed", [5., 9., 9.1, 15., 30.])
-@pytest.mark.parametrize("driver_handoff", [False, True])
-def test_recovery_matches_sp_baseline_outside_fractional_gate(previous_recovery_class, direction, speed, driver_handoff):
+def test_recovery_matches_sp_baseline_outside_fractional_gate(previous_recovery_class, direction, speed):
   cp = CarInterface.get_non_essential_params(CAR.FORD_MUSTANG_MACH_E_MK1)
   cp_sp = CarInterface.get_non_essential_params_sp(cp, cp.carFingerprint)
   before = angle_harness(previous_recovery_class, cp, cp_sp)
@@ -116,17 +115,81 @@ def test_recovery_matches_sp_baseline_outside_fractional_gate(previous_recovery_
   cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * .0005 * speed, steeringAngleDeg=direction * 5.)
   active_frames = 0
   for i in range(400):
-    cs.out.steeringPressed = driver_handoff and 20 <= i < 40
     cc = _CC(latActive=i >= 10)
     old = before.update_angle_strategy(cc, cs, _Actuators(direction * .008), cp)
     new = after.update_angle_strategy(cc, cs, _Actuators(direction * .008), cp)
     assert new == old, (i, new, old)
     for name in ("angle_stall_blip_active", "stall_blip_frames_left", "stall_blip_hold_s",
-                 "stall_blip_cooldown_s", "stall_blip_count", "press_timer_s", "bp_kappa_cmd"):
+                 "stall_blip_cooldown_s", "stall_blip_count", "bp_kappa_cmd"):
       assert getattr(after, name) == getattr(before, name), (i, name)
     active_frames += after.angle_stall_blip_active
   if 9. < speed <= 15.:
     assert active_frames >= 6  # equality must actually exercise a recovery pulse
+
+
+@pytest.mark.parametrize("direction", [-1, 1])
+@pytest.mark.parametrize("speed", [5., 9., 9.1, 15., 21., 30.])
+@pytest.mark.parametrize("exit_curve", [False, True])
+def test_mach_e_correction_release_preserves_steering(direction, speed, exit_curve):
+  # Driver contact alone must not insert a mode-0 pulse. Compare against the
+  # same current controller without contact, using actual Mach-E parameters.
+  # Keep the old-baseline equality test above for unrelated reactive recovery.
+  cp = CarInterface.get_non_essential_params(CAR.FORD_MUSTANG_MACH_E_MK1)
+  cp_sp = CarInterface.get_non_essential_params_sp(cp, cp.carFingerprint)
+  untouched = angle_harness(LateralAngleExt, cp, cp_sp)
+  corrected = angle_harness(LateralAngleExt, cp, cp_sp)
+  for ext in (untouched, corrected):
+    ext.bp_pinion_curvature_enabled = False
+    ext.model = _Model()
+  cs = _CS(vEgoRaw=speed, vEgo=speed, steeringAngleDeg=direction * 5.)
+  for i in range(100):
+    desired = direction * .002
+    if exit_curve and i >= 40:
+      desired *= max(-1., 1. - (i - 40) / 20.)
+    cs.out.yawRate = -desired * speed
+    for ext in (untouched, corrected):
+      ext.model.orientationRate.z = [desired * speed] * 33
+    cs.out.steeringPressed = False
+    reference = untouched.update_angle_strategy(_CC(), cs, _Actuators(desired), cp)
+    cs.out.steeringPressed = 20 <= i < 40
+    result = corrected.update_angle_strategy(_CC(), cs, _Actuators(desired), cp)
+    assert result == reference, (i, result, reference)
+    assert not corrected.angle_stall_blip_active
+    assert not corrected.angle_human_turn_active
+    assert corrected.stall_blip_frames_left == 0
+    if not cs.out.steeringPressed:
+      assert corrected.bp_kappa_cmd == untouched.bp_kappa_cmd
+  assert corrected.stall_blip_count == 0
+  assert result.path_angle * direction * (-1 if exit_curve else 1) > 0.
+
+
+@pytest.mark.parametrize("direction", [-1, 1])
+@pytest.mark.parametrize("speed", [9.1, 15.])
+def test_mach_e_release_still_requires_persistent_deficit_for_recovery(direction, speed):
+  cp = CarInterface.get_non_essential_params(CAR.FORD_MUSTANG_MACH_E_MK1)
+  cp_sp = CarInterface.get_non_essential_params_sp(cp, cp.carFingerprint)
+  ext = angle_harness(LateralAngleExt, cp, cp_sp)
+  ext.bp_pinion_curvature_enabled = False
+  ext.model = _Model()
+  ext.model.orientationRate.z = [direction * .008 * speed] * 33
+  cs = _CS(vEgoRaw=speed, vEgo=speed, yawRate=-direction * .0005 * speed,
+           steeringAngleDeg=direction * 5., steeringPressed=True)
+  for _ in range(20):
+    ext.update_angle_strategy(_CC(), cs, _Actuators(direction * .008), cp)
+    assert not ext.angle_stall_blip_active
+  cs.out.steeringPressed = False
+  first = ext.update_angle_strategy(_CC(), cs, _Actuators(direction * .008), cp)
+  assert not ext.angle_stall_blip_active
+  assert ext.stall_blip_frames_left == 0
+  assert first.path_angle * direction > 0.
+  # The retained reactive detector must still respond to this severe, measured
+  # deficit after its hold time, rather than treating release as the trigger.
+  active_frames = 0
+  for _ in range(40):
+    ext.update_angle_strategy(_CC(), cs, _Actuators(direction * .008), cp)
+    active_frames += ext.angle_stall_blip_active
+  assert active_frames == 6
+  assert ext.stall_blip_count == 1
 
 
 def test_real_lateral_delay_message_controls_calibration_admission(tmp_path):
