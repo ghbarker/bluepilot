@@ -283,19 +283,48 @@ class TestStallRecovery(unittest.TestCase):
           self.assertGreater(result.path_angle * direction, 0.)
           self.assertLessEqual(abs(result.path_angle), 0.055)
 
-  def test_proactive_sustained_press_release_is_unchanged(self):
-    cp, ext, cs, actuators = self._scenario(desired=0.002, fraction=1.)
-    cs.out.steeringPressed = True
-    cs.out.steeringAngleDeg = 5.0
-    for _ in range(20):
-      ext.update_angle_strategy(_CC(), cs, actuators, cp)
-    cs.out.steeringPressed = False
-    for frames_left in range(5, -1, -1):
-      result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
-      self.assertTrue(ext.angle_stall_blip_active)
-      self.assertEqual(ext.stall_blip_frames_left, frames_left)
-      self.assertEqual(result.path_angle, 0.)
-    self.assertEqual(ext.stall_blip_count, 0)  # proactive pulses do not count as a reactive episode
+  def test_driver_release_preserves_healthy_curve_command(self):
+    # A steering correction followed by release is not evidence of an EPS stall.
+    # Exercise both turn directions and the incident's approximately 47 mph speed.
+    for speed in (10., 15., 21., 25.):
+      for direction in (-1, 1):
+        for press_frames in (9, 11, 40):
+          with self.subTest(speed=speed, direction=direction, press_frames=press_frames):
+            cp, ext, cs, actuators = self._scenario(desired=0.002, fraction=1., speed=speed, direction=direction)
+            cs.out.steeringPressed = True
+            cs.out.steeringAngleDeg = direction * 5.0
+            for _ in range(press_frames):
+              before = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+            self.assertGreater(before.path_angle * direction, 0.)
+            cs.out.steeringPressed = False
+            for _ in range(20):
+              result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+              self.assertFalse(ext.angle_stall_blip_active)
+              self.assertFalse(ext.angle_human_turn_active)
+              self.assertEqual(ext.stall_blip_frames_left, 0)
+              self.assertAlmostEqual(result.path_angle, before.path_angle)
+            self.assertEqual(ext.stall_blip_count, 0)
+
+  def test_driver_release_allows_curve_exit(self):
+    for direction in (-1, 1):
+      with self.subTest(direction=direction):
+        cp, ext, cs, actuators = self._scenario(desired=0.002, fraction=1., speed=21., direction=direction)
+        cs.out.steeringPressed = True
+        cs.out.steeringAngleDeg = direction * 5.0
+        for _ in range(20):
+          previous = ext.update_angle_strategy(_CC(), cs, actuators, cp).path_angle
+        cs.out.steeringPressed = False
+        for desired in (0.0015, 0.001, 0.0005, 0.):
+          actuators.curvature = direction * desired
+          ext.model.orientationRate.z = [direction * desired * cs.out.vEgo] * 33
+          result = ext.update_angle_strategy(_CC(), cs, actuators, cp)
+          self.assertFalse(ext.angle_stall_blip_active)
+          self.assertFalse(ext.angle_human_turn_active)
+          self.assertLess(abs(result.path_angle), abs(previous))
+          if desired:
+            self.assertGreater(result.path_angle * direction, 0.)
+          previous = result.path_angle
+        self.assertAlmostEqual(previous, 0.)
 
   def test_reactive_speed_driver_and_lane_change_gates_remain(self):
     for blocked_by in ('speed', 'driver', 'lane_change'):
@@ -323,13 +352,11 @@ class TestStallRecovery(unittest.TestCase):
     ext.stall_blip_frames_left = 6
     ext.stall_blip_hold_s = 0.4
     ext.stall_blip_count = 2
-    ext.press_timer_s = 1.
     ext.update_angle_strategy(_CC(latActive=False), cs, actuators, cp)
     self.assertFalse(ext.angle_stall_blip_active)
     self.assertEqual(ext.stall_blip_frames_left, 0)
     self.assertEqual(ext.stall_blip_hold_s, 0.)
     self.assertEqual(ext.stall_blip_count, 0)
-    self.assertEqual(ext.press_timer_s, 0.)
 
   def test_deliberate_human_turn_still_yields_and_then_resumes(self):
     for direction in (-1, 1):

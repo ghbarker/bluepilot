@@ -101,23 +101,15 @@ _STEER_DT = CarControllerParams.STEER_STEP * DT_CTRL  # 20 Hz lateral tick (matc
 _STALL_GAP_MIN = 2.0 * CarControllerParams.CURVATURE_ERROR  # desired must lead measured by 2x the clip tolerance
 # Require a fractional delivery deficit as well as an absolute gap (BluePilot PR #148).
 # A large demand can otherwise pass the gap test during normal curve-entry lag.
-# This empirical gate reduces those false reactive resets; it does not qualify
-# the separate proactive hand-off pulse or prove that a detected stall is safe to reset.
+# This empirical gate reduces false reactive resets; it does not prove that a
+# detected stall is safe to reset.
 _STALL_DELIVERY_FRACTION = 0.65
 _STALL_HOLD_S = 0.5          # accumulated clip-binding time before a pulse fires
 _STALL_BLIP_FRAMES = 6       # mode-0 pulse length (6 frames @ 20 Hz = 300 ms; PSCM acked mode 0 in ~150 ms on-road)
 _STALL_COOLDOWN_S = 2.0      # re-arm delay after a pulse (release ramp + PSCM response time)
 _STALL_MAX_BLIPS = 3         # give up on a stuck episode; devLim telemetry keeps recording the stall
-# Proactive hand-off blip: any sustained driver press attenuates the PSCM (route 000000be seg 4:
-# 3 s of sub-45-deg circle-exit steering left it at ~0x delivery, and the reactive detector's
-# fire-after-the-stall-develops timing meant 2.4 s of dead-straight running into the next curve
-# before the pulse landed). The original strategy therefore fires the same pulse on release
-# when the previous command is small, intending to recover authority before the next curve.
-# The 300 ms lateral gap is real; this gate does not establish straight driving or an
-# imperceptible hand-off. This baseline path is retained, with reactive detection as backstop.
-_PRESS_BLIP_MIN_S = 0.5      # press must last this long before its release earns a pulse
-# Retained command-magnitude gate for the 300 ms pulse. A small path_angle alone
-# does not establish that the vehicle is on a straight; further recovery qualification is needed.
+# Command-magnitude gate for reactive recovery. A small path_angle alone does
+# not establish that the vehicle is on a straight; the stall tests above also apply.
 _BLIP_MAX_PATH_ANGLE = 0.10  # rad
 
 
@@ -184,7 +176,6 @@ class LateralAngleExt:
     self.stall_blip_cooldown_s = 0.0  # re-arm delay after a pulse
     self.stall_blip_count = 0         # pulses fired this stall episode
     self.angle_stall_blip_active = False
-    self.press_timer_s = 0.0          # continuous steeringPressed time, for the hand-off blip
 
     # BluePilot: continuous auto-calibration of the speed factors. The pure estimator lives
     # in angle_autocal.py; ALL lifecycle (arm/disarm, JSON persistence, user-edit debounce,
@@ -330,7 +321,6 @@ class LateralAngleExt:
       self.stall_blip_cooldown_s = 0.0
       self.stall_blip_count = 0
       self.angle_stall_blip_active = False
-      self.press_timer_s = 0.0
       self.precision_type = 1
       return LateralResult(
         apply_curvature=0.0,
@@ -368,15 +358,12 @@ class LateralAngleExt:
       # Keep exit detection current so resume doesn't compare against a stale pre-turn value.
       self._desired_curvature_last = float(actuators.curvature)
       self.lane_center_trim.reset()
-      # A human turn ends any stall episode -- its own mode 0 does the PSCM reset job. That also
-      # covers the press so far: only press time accumulated AFTER the latch releases should earn
-      # a hand-off pulse.
+      # A human turn ends any stall episode -- its own mode 0 does the PSCM reset job.
       self.stall_blip_hold_s = 0.0
       self.stall_blip_frames_left = 0
       self.stall_blip_cooldown_s = 0.0
       self.stall_blip_count = 0
       self.angle_stall_blip_active = False
-      self.press_timer_s = 0.0
       self.precision_type = 1
       return LateralResult(
         apply_curvature=0.0,
@@ -388,19 +375,9 @@ class LateralAngleExt:
         lateralUncertainty=0.0,
       )
 
-    # Proactive hand-off blip: the falling edge of a sustained press earns an immediate mode-0
-    # pulse (see _PRESS_BLIP_MIN_S). The baseline design intends to clear press-induced
-    # attenuation before a reactive stall develops. Its previous-command magnitude gate
-    # alone does not establish a straight road or prove recovery; retain it without
-    # broadening admission while recording the resulting command and Ford response.
-    if CS.out.steeringPressed:
-      self.press_timer_s += _STEER_DT
-    else:
-      if (self.press_timer_s >= _PRESS_BLIP_MIN_S and self.stall_blip_cooldown_s <= 0.0
-          and self.stall_blip_frames_left <= 0
-          and abs(self.path_angle_last) < _BLIP_MAX_PATH_ANGLE):
-        self.stall_blip_frames_left = _STALL_BLIP_FRAMES
-      self.press_timer_s = 0.0
+    # Releasing a driver correction is not evidence of an EPS stall. Preserve the
+    # steering request across release instead of inserting a 300 ms mode-0 gap.
+    # Only the existing reactive stall detector below can schedule recovery.
 
     # Stall-blip pulse in progress: hold lateral inactive (mode 0, all-zero signals -- the same
     # wire pattern as the human-turn override, no ford.h involvement) for _STALL_BLIP_FRAMES so the
