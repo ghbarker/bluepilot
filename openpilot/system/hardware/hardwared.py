@@ -28,6 +28,7 @@ from openpilot.sunnypilot.system.statsd import statlog
 from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import FanController
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
+from openpilot.system.hardware.loop_diagnostics import HardwareLoopDiagnostics
 from openpilot.common.version import terms_version, training_version, get_build_metadata, terms_version_sp
 
 ThermalStatus = log.DeviceState.ThermalStatus
@@ -197,7 +198,7 @@ def hw_state_thread(end_event, hw_queue):
     time.sleep(DT_HW)
 
 
-def hardware_thread(end_event, hw_queue) -> None:
+def hardware_thread(end_event, hw_queue, loop_diagnostics=None) -> None:
   system_stats = LinuxSystemStats()
   pm = messaging.PubMaster(['deviceState'])
   sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates", "chestnutState"], poll="pandaStates")
@@ -465,6 +466,11 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     msg.deviceState.thermalStatus = thermal_status
     pm.send("deviceState", msg)
+    if loop_diagnostics is not None:
+      try:
+        loop_diagnostics.published()
+      except Exception:
+        pass  # Diagnostics cannot interrupt thermal/ignition monitoring.
 
     statlog.gauge("free_space_percent", msg.deviceState.freeSpacePercent)
     statlog.gauge("gpu_usage_percent", msg.deviceState.gpuUsagePercent)
@@ -525,10 +531,12 @@ def hardware_thread(end_event, hw_queue) -> None:
 def main():
   hw_queue = queue.Queue(maxsize=1)
   end_event = threading.Event()
+  loop_diagnostics = HardwareLoopDiagnostics()
+  status_thread = threading.Thread(target=hardware_thread, args=(end_event, hw_queue, loop_diagnostics))
 
   threads = [
     threading.Thread(target=hw_state_thread, args=(end_event, hw_queue)),
-    threading.Thread(target=hardware_thread, args=(end_event, hw_queue)),
+    status_thread,
   ]
 
   if COMMA_HARDWARE:
@@ -542,6 +550,13 @@ def main():
       time.sleep(1)
       if not all(t.is_alive() for t in threads):
         break
+      try:
+        if diagnostic := loop_diagnostics.poll(status_thread.ident):
+          event = diagnostic.pop('event')
+          cloudlog.event(event, **diagnostic)
+      except Exception:
+        # Observation must not terminate the supervisor or hardware worker.
+        pass
   finally:
     end_event.set()
 

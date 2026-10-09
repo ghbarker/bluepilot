@@ -42,7 +42,8 @@ def test_failed_alert_write_can_retry(monkeypatch):
 
 
 @pytest.mark.parametrize('device_type,channel_type,supported', [('tizi', 'staging', True), ('tici', 'staging', False), ('tici', 'tici', True)])
-def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, device_type, channel_type, supported):
+@pytest.mark.parametrize('diagnostic_fails', [False, True])
+def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, device_type, channel_type, supported, diagnostic_fails):
   """Exercise the real loop with a stalled statistics writer and changing hardware.
 
   Deferred writes remain queued throughout the run. Synchronous statistics would
@@ -124,9 +125,13 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
   # Do not touch /dev/kmsg in the test.
   monkeypatch.setattr(hardwared, 'open', Mock(side_effect=OSError()), raising=False)
 
-  hardwared.hardware_thread(end_event, queue.Queue())
+  diagnostic = Mock()
+  if diagnostic_fails:
+    diagnostic.published.side_effect = RuntimeError('diagnostic unavailable')
+  hardwared.hardware_thread(end_event, queue.Queue(), diagnostic)
 
   assert len(published) == 130
+  assert diagnostic.published.call_count == len(published)
   assert len(pending) == 4  # Both uptime counters, at count 0 and 120.
   assert all(value >= 0 for _key, value in pending)
   assert pending[2][1] >= pending[0][1]
@@ -140,3 +145,34 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
   assert not published[126]['started']  # Critical temperature still takes it offroad.
   assert published[129]['started'] == supported
   assert any(p['thermal'] == 'critical' for p in published)
+
+
+@pytest.mark.parametrize('failure', ['poll', 'log'])
+def test_diagnostic_failure_does_not_stop_supervision(monkeypatch, failure):
+  made_threads = []
+  sleeps = []
+
+  def thread(*args, **kwargs):
+    item = Mock(ident=42)
+    item.is_alive.side_effect = lambda: len(sleeps) < 2
+    made_threads.append(item)
+    return item
+
+  monitor = Mock()
+  logger = Mock()
+  if failure == 'poll':
+    monitor.poll.side_effect = RuntimeError('diagnostic unavailable')
+  else:
+    monitor.poll.return_value = {'event': 'hardwareStatusStalled'}
+    logger.event.side_effect = RuntimeError('logging unavailable')
+  monkeypatch.setattr(hardwared.threading, 'Thread', thread)
+  monkeypatch.setattr(hardwared.time, 'sleep', lambda _: sleeps.append(True))
+  monkeypatch.setattr(hardwared, 'COMMA_HARDWARE', False)
+  monkeypatch.setattr(hardwared, 'HardwareLoopDiagnostics', lambda: monitor)
+  monkeypatch.setattr(hardwared, 'cloudlog', logger)
+  hardwared.main()
+  assert len(sleeps) == 2
+  assert len(made_threads) == 2
+  for item in made_threads:
+    item.start.assert_called_once()
+    item.join.assert_called_once()
