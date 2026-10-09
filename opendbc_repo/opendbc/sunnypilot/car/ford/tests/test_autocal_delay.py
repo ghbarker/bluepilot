@@ -12,6 +12,8 @@ import pytest
 
 from opendbc.sunnypilot.car.ford.angle_autocal import Frame, LOCK_STABLE_S
 from opendbc.sunnypilot.car.ford.angle_autocal_controller import AutoCalController
+from opendbc.car.ford.values import FordFlags
+from opendbc.sunnypilot.car.ford.steering_limit_feedback import calibration_feedback_clear
 from opendbc.sunnypilot.car.ford.tests.test_angle_autocal import (
   DT, PLATFORM_GAIN_HIGH, _MockParams, _evidenced_pipe, _frame, feed_plant,
 )
@@ -33,7 +35,8 @@ def feed_method():
   tree = ast.parse(path.read_text())
   cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "LateralAngleExt")
   method = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == "_feed_autocal")
-  ns = {"Frame": Frame}
+  ns = {"Frame": Frame, "calibration_feedback_clear": calibration_feedback_clear,
+        "can_clock_nanos": lambda: 1_000_000_000}
   exec(compile(ast.Module(body=[method], type_ignores=[]), str(path), "exec"), ns)
   return ns[method.name]
 
@@ -77,12 +80,59 @@ def test_caller_accepts_healthy_delay_between_publisher_updates(feed_method):
   ctl, _ = controller()
   ext = SimpleNamespace(autocal_ctl=ctl, sm=DelayMessages(), bp_angle_rate_limited=False,
                         bp_curvature_deviation_limited=False, bp_angle_saturated=False,
-                        low_speed_curv_factor=1., high_speed_curv_factor=1.)
+                        low_speed_curv_factor=1., high_speed_curv_factor=1., CP=SimpleNamespace(flags=0))
   cs = SimpleNamespace(out=SimpleNamespace(wheelSpeeds=SimpleNamespace(fl=10., fr=10., rl=10., rr=10.),
                        vEgoRaw=10., steeringPressed=False, steeringTorque=0., aEgo=0.))
   for _ in range(200):
     feed_method(ext, cs, .004, .004)
   assert ctl.pipeline.est.n > 0
+
+
+def feedback_car(status=0, control_status=2, available=True, timestamp=1_000_000_000, valid=True, can_valid=True):
+  feedback = SimpleNamespace(status=status, controlStatus=control_status, dataAvailable=available, sourceMonoTime=timestamp)
+  return SimpleNamespace(out=SimpleNamespace(canValid=can_valid),
+                         car_state_bp_msg=SimpleNamespace(valid=valid, carStateBP=SimpleNamespace(fordSteeringLimit=feedback)))
+
+
+@pytest.mark.parametrize('changes', [
+  {'status': 1}, {'status': 2}, {'status': 3}, {'status': 4},
+  {'control_status': 0}, {'control_status': 1}, {'control_status': 3},
+  {'available': False}, {'valid': False}, {'can_valid': False},
+  {'timestamp': 0}, {'timestamp': 849_999_999}, {'timestamp': 1_000_000_001},
+])
+def test_limited_or_unverifiable_feedback_blocks_evidence_and_writes(feed_method, changes):
+  ctl, params = controller(_evidenced_pipe())
+  ext = SimpleNamespace(autocal_ctl=ctl, sm=DelayMessages(), CP=SimpleNamespace(flags=FordFlags.CANFD))
+  n = ctl.pipeline.est.n
+  ctl.pipeline.stable_s = LOCK_STABLE_S - DT
+  # No wheel speeds/steering inputs in this fixture: the interlock must return
+  # before treating the response as a learnable vehicle sample.
+  for _ in range(40):
+    feed_method(ext, feedback_car(**changes), .004, .004 / 1.1)
+  assert ctl.pipeline.est.n == n and not params.written
+  assert not ctl.pipeline._hist and not ctl.pipeline._staged
+  assert ctl.pipeline.stable_s == 0. and not ctl.pipeline.locked
+  assert ctl._pause_reason == 'steering_feedback'
+
+
+def test_fresh_clear_feedback_and_classic_can_admission():
+  assert calibration_feedback_clear(feedback_car(timestamp=850_000_000), FordFlags.CANFD, 1_000_000_000)
+  assert calibration_feedback_clear(feedback_car(), FordFlags.CANFD, 1_000_000_000)
+  assert not calibration_feedback_clear(SimpleNamespace(), FordFlags.CANFD, 1_000_000_000)
+  assert calibration_feedback_clear(None, 0, 1_000_000_000)
+
+
+def test_feedback_pause_discards_pending_samples_without_rewriting_gains():
+  ctl, params = controller(_evidenced_pipe())
+  n = ctl.pipeline.est.n
+  ctl.pause_for_steering_feedback()
+  assert not params.written
+  assert not ctl.pipeline._hist and not ctl.pipeline._staged
+  assert not ctl.pipeline.peaks.buf
+  assert not ctl.pipeline._frame_allows_trials
+  # A clear feedback frame must refill command/response alignment before learning.
+  ctl.feed(_frame(10., .004, .004 / 1.1), delay_estimated=True)
+  assert ctl.pipeline.est.n == n and not params.written
 
 
 def test_disabled_caller_does_not_read_delay_or_vehicle_signals(feed_method):

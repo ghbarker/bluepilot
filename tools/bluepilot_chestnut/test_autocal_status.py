@@ -24,7 +24,8 @@ def test_saved_lock_cannot_be_presented_as_live_when_publisher_is_missing():
   assert calibration_status_text(True, None, saved) == "Saved: adjustment under review"
 
 
-@pytest.mark.parametrize("pause,expected", [("delay", "Waiting for steering delay"), ("inactive", "Waiting for active steering")])
+@pytest.mark.parametrize("pause,expected", [("delay", "Waiting for steering delay"), ("inactive", "Waiting for active steering"),
+                                          ("steering_feedback", "Waiting for clear steering feedback")])
 def test_pause_takes_precedence_over_pending_trial(pause, expected):
   assert calibration_status_text(True, status(pause=pause, low={"ph": "verify"})) == expected
 

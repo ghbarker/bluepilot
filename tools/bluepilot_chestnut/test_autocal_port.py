@@ -13,6 +13,7 @@ from opendbc.car.ford.values import CAR
 from opendbc.sunnypilot.car.ford import lateral_curv_ext
 from opendbc.sunnypilot.car.ford.angle_autocal_controller import AutoCalController
 from opendbc.sunnypilot.car.ford.lateral_angle_ext import LateralAngleExt
+from opendbc.sunnypilot.car.ford.steering_diagnostics import can_clock_nanos
 from opendbc.sunnypilot.car.ford.tests.test_lateral_angle_ext import (
   _FakeSubMaster, _CS, _CC, _Actuators, _Model,
 )
@@ -208,8 +209,13 @@ def test_real_lateral_delay_message_controls_calibration_admission(tmp_path):
   msg.lateralDelay.status = log.LateralDelay.Status.unestimated
   msg.lateralDelay.calPerc = 99
   msg.lateralDelay.lateralDelay = .2
-  cs = SimpleNamespace(out=SimpleNamespace(vEgoRaw=10., steeringPressed=False, steeringTorque=0., aEgo=0.,
+  cs = SimpleNamespace(out=SimpleNamespace(canValid=True, vEgoRaw=10., steeringPressed=False, steeringTorque=0., aEgo=0.,
                        wheelSpeeds=SimpleNamespace(fl=10., fr=10., rl=10., rr=10.)))
+  cs.car_state_bp_msg = messaging.new_message('carStateBP', valid=True)
+  feedback = cs.car_state_bp_msg.carStateBP.fordSteeringLimit
+  feedback.dataAvailable = True
+  feedback.controlStatus = 2
+  feedback.status = 0
   n = ext.autocal_ctl.pipeline.est.n
   for i in range(40):
     sm.update_msgs(10. + i * .25, [msg.as_reader()])
@@ -220,8 +226,19 @@ def test_real_lateral_delay_message_controls_calibration_admission(tmp_path):
   msg.lateralDelay.calPerc = 100
   for i in range(400):
     sm.update_msgs(20. + i * DT, [msg.as_reader()] if i % 5 == 0 else [])
+    feedback.sourceMonoTime = can_clock_nanos()
     ext._feed_autocal(cs, .004, .004 / 1.1)
   assert ext.autocal_ctl.pipeline.est.n > n
+  n = ext.autocal_ctl.pipeline.est.n
+  previous_factor = params.get('FordLowSpeedFactor_ang', return_default=True)
+  feedback.status = 2
+  for i in range(40):
+    sm.update_msgs(40. + i * DT, [msg.as_reader()] if i % 5 == 0 else [])
+    feedback.sourceMonoTime = can_clock_nanos()
+    ext._feed_autocal(cs, .004, .004 / 1.1)
+  assert ext.autocal_ctl.pipeline.est.n == n
+  assert params.get('FordLowSpeedFactor_ang', return_default=True) == previous_factor
+  assert not ext.autocal_ctl.pipeline._hist and not ext.autocal_ctl.pipeline._staged
   sm.update_msgs(45., [])  # retain estimated payload, but publisher is stale
   assert not sm.all_checks(["lateralDelay"])
   ext._feed_autocal(None, .004, .004)

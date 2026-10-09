@@ -42,6 +42,8 @@ from opendbc.sunnypilot.car.ford.angle_autocal import Frame
 from opendbc.sunnypilot.car.ford.angle_autocal_controller import AutoCalController
 from opendbc.sunnypilot.car.ford.lateral_curv_ext import LateralResult
 from opendbc.sunnypilot.car.ford.human_turn import HumanTurnDetector
+from opendbc.sunnypilot.car.ford.steering_diagnostics import can_clock_nanos
+from opendbc.sunnypilot.car.ford.steering_limit_feedback import calibration_feedback_clear
 from opendbc.sunnypilot.car.ford.lane_center_trim import LaneCenterTrim
 from opendbc.sunnypilot.car.ford.values_ext import BP_ANGLE_LIMITS, platform_gains, V_LOW, V_HIGH, LOW_ANCHOR_BASE
 from openpilot.selfdrive.modeld.constants import ModelConstants
@@ -260,6 +262,9 @@ class LateralAngleExt:
     # valid/alive/frequency checks and completed learning before constructing evidence.
     if not self.sm.all_checks(['lateralDelay']) or str(delay.status) != "estimated" or delay.calPerc < 100:
       self.autocal_ctl.pause_for_delay()
+      return
+    if not calibration_feedback_clear(CS, self.CP.flags, can_clock_nanos()):
+      self.autocal_ctl.pause_for_steering_feedback()
       return
     ws = CS.out.wheelSpeeds
     ws_vals = (float(ws.fl), float(ws.fr), float(ws.rl), float(ws.rr))

@@ -17,8 +17,9 @@ import time
 from opendbc.sunnypilot.car.ford.angle_autocal import AutoCalPipeline, Frame
 
 SAVE_PERIOD_S = 30.0
-EDIT_TOL = 0.005    # half the menu granularity (0.01): a factor moved further than this
-                    # without the nudger writing it is a driver hand-edit
+# Half the menu granularity (0.01): a larger change not written by the nudger
+# is treated as a driver hand-edit.
+EDIT_TOL = 0.005
 FACTOR_KEYS = ('FordLowSpeedFactor_ang', 'FordHighSpeedFactor_ang')
 
 
@@ -196,6 +197,14 @@ class AutoCalController:
     self._last_response_time = None
     if self.pipeline is not None:
       self.pipeline.pause_for_delay()
+      self._dirty = True
+
+  def pause_for_steering_feedback(self):
+    """Do not learn, propose or write gains without unrestricted EPS feedback."""
+    self.idle()
+    self._pause_reason = "steering_feedback"
+    if self.pipeline is not None:
+      self.pipeline.stable_s = 0.0
       self._dirty = True
 
   def feed(self, frame: Frame, delay_estimated: bool):

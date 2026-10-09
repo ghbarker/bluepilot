@@ -41,6 +41,8 @@ def calibration_status_text(enabled: bool, live: str | None, saved: str = "", *,
   state = _object(live)
   if state.get("pause") == "delay":
     return "Waiting for steering delay"
+  if state.get("pause") == "steering_feedback":
+    return "Waiting for clear steering feedback"
   if state.get("pause") == "inactive":
     return "Waiting for active steering"
   low, high = state.get("low"), state.get("high")
