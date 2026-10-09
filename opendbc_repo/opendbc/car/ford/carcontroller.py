@@ -16,6 +16,7 @@ from opendbc.sunnypilot.car.ford import fordcan_ext
 from opendbc.sunnypilot.car.ford.chestnut_compat import limit_curvature_for_chestnut
 from opendbc.sunnypilot.car.ford.icbm import IntelligentCruiseButtonManagementInterface
 from opendbc.sunnypilot.car.ford.steering_diagnostics import steering_command_snapshot
+from opendbc.sunnypilot.car.ford.angle_command_recovery import AngleCommandRecovery
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -55,6 +56,7 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
     self.gas = 0.0
     self.last_button_frame = 0  # BluePilot: ICBM button press tracking
     self.fordSteeringCommand = {"dataAvailable": False}
+    self.angle_command_recovery = AngleCommandRecovery(self.CAN.main)
     # Note: main_on_last, lkas_enabled_last, steer_alert_last, lead_distance_bars_last,
     # distance_bar_frame are initialized by HudExt.__init__() above
 
@@ -107,6 +109,17 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
       lateral_mode = "stock" if self.disable_BP_lat_UI else self.primary_lateral_control
       mode_changed = lateral_mode != self.bp_lateral_mode_last
       self.bp_lateral_mode_last = lateral_mode
+      recover_angle = (bool(self.CP.flags & FordFlags.CANFD) and not self.disable_BP_lat_UI
+                       and self.primary_lateral_control == PrimaryLateralControl.angle)
+      if mode_changed or not recover_angle:
+        self.angle_command_recovery.reset()
+      elif CC.latActive:
+        accepted_angle = self.angle_command_recovery.recover(self.frame)
+        if accepted_angle is not None:
+          # Panda retains its last admitted angle after rejection. Start the
+          # existing rate limiter there; never count a rejected request as sent.
+          self.path_angle_last = accepted_angle
+          self.autocal_ctl.idle()  # No calibration evidence across a rejection.
       # BluePilot: no calibration evidence may span another steering mode.
       if self.disable_BP_lat_UI or self.primary_lateral_control != PrimaryLateralControl.angle:
         self.autocal_ctl.idle()
@@ -194,6 +207,8 @@ class CarController(CarControllerBase, LateralCurvExt, LateralAngleExt, Longitud
       # before the LKA insertion below can change list positions. Persist it at
       # 100 Hz with its original 20 Hz frame/time; this is not EPS acceptance.
       self.fordSteeringCommand = steering_command_snapshot(can_sends[-1], self.frame, now_nanos)
+      if recover_angle:
+        self.angle_command_recovery.record(can_sends[-1], self.frame)
 
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:

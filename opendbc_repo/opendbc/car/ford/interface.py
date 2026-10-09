@@ -20,6 +20,10 @@ class CarInterface(CarInterfaceBase):
 
   DRIVABLE_GEARS = (structs.CarState.GearShifter.low, structs.CarState.GearShifter.manumatic)
 
+  def update(self, can_packets):
+    self.CC.angle_command_recovery.update(can_packets, self.CC.frame)
+    return super().update(can_packets)
+
   @staticmethod
   def get_pid_accel_limits(CP, CP_SP, current_speed, cruise_speed):
     # PCM doesn't allow acceleration near cruise_speed,
