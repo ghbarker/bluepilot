@@ -7,6 +7,7 @@ import pytest
 
 from openpilot.cereal import log
 from openpilot.system.hardware import hardwared
+from openpilot.system.hardware.power_telemetry import SomPowerTelemetry
 
 
 @pytest.fixture(autouse=True)
@@ -80,7 +81,8 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
 
   def publish(service, msg):
     assert service == 'deviceState'
-    published.append({'started': msg.deviceState.started, 'thermal': str(msg.deviceState.thermalStatus)})
+    published.append({'started': msg.deviceState.started, 'thermal': str(msg.deviceState.thermalStatus),
+                      'som_power': msg.deviceState.somPowerDrawW})
     if len(published) == 130:
       end_event.set()
 
@@ -101,7 +103,14 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
   hardware.get_gpu_usage_percent.return_value = 0.
   hardware.get_screen_brightness.return_value = 50.
   hardware.get_current_power_draw.return_value = 5.
-  hardware.get_som_power_draw.return_value = 3.
+  sensor_entered, sensor_release = threading.Event(), threading.Event()
+
+  def blocked_som_read():
+    sensor_entered.set()
+    assert sensor_release.wait(5.), 'test cleanup failed to release sensor'
+    return 3.
+
+  hardware.get_som_power_draw.side_effect = blocked_som_read
   hardware.booted.return_value = True
   power = Mock()
   power.get_power_used.return_value = 0
@@ -128,7 +137,20 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
   diagnostic = Mock()
   if diagnostic_fails:
     diagnostic.published.side_effect = RuntimeError('diagnostic unavailable')
-  hardwared.hardware_thread(end_event, queue.Queue(), diagnostic)
+  telemetry = SomPowerTelemetry(hardware.get_som_power_draw, clock=lambda: now[0])
+  reader = threading.Thread(target=telemetry.run, args=(end_event,), daemon=True)
+  reader.start()
+  try:
+    assert sensor_entered.wait(2.)
+    hardwared.hardware_thread(end_event, queue.Queue(), diagnostic, telemetry)
+  finally:
+    end_event.set()
+    sensor_release.set()
+    reader.join(2.)
+  assert not reader.is_alive()
+  hardware.get_som_power_draw.assert_called_once()
+  assert all(p['som_power'] == 0. for p in published)
+  assert not any(c.args[0] == 'som_power_draw' for c in hardwared.statlog.sample.call_args_list)
 
   assert len(published) == 130
   assert diagnostic.published.call_count == len(published)
@@ -154,6 +176,7 @@ def test_diagnostic_outcomes_do_not_stop_supervision(monkeypatch, failure):
 
   def thread(*args, **kwargs):
     item = Mock(ident=42)
+    item.optional = kwargs.get('daemon', False)
     item.is_alive.side_effect = lambda: len(sleeps) < 2
     made_threads.append(item)
     return item
@@ -175,7 +198,11 @@ def test_diagnostic_outcomes_do_not_stop_supervision(monkeypatch, failure):
   if failure is None:
     logger.event.assert_called_once_with('hardwareStatusStalled', error=True)
   assert len(sleeps) == 2
-  assert len(made_threads) == 2
+  assert len(made_threads) == 3
   for item in made_threads:
     item.start.assert_called_once()
-    item.join.assert_called_once()
+    if item.optional:
+      item.join.assert_not_called()
+      item.is_alive.assert_not_called()
+    else:
+      item.join.assert_called_once()

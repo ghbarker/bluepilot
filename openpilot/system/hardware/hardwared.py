@@ -29,6 +29,7 @@ from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import FanController
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
 from openpilot.system.hardware.loop_diagnostics import HardwareLoopDiagnostics
+from openpilot.system.hardware.power_telemetry import SomPowerTelemetry
 from openpilot.common.version import terms_version, training_version, get_build_metadata, terms_version_sp
 
 ThermalStatus = log.DeviceState.ThermalStatus
@@ -198,7 +199,7 @@ def hw_state_thread(end_event, hw_queue):
     time.sleep(DT_HW)
 
 
-def hardware_thread(end_event, hw_queue, loop_diagnostics=None) -> None:
+def hardware_thread(end_event, hw_queue, loop_diagnostics=None, som_power_telemetry=None) -> None:
   system_stats = LinuxSystemStats()
   pm = messaging.PubMaster(['deviceState'])
   sm = messaging.SubMaster(["peripheralState", "gpsLocationExternal", "selfdriveState", "pandaStates", "chestnutState"], poll="pandaStates")
@@ -448,9 +449,14 @@ def hardware_thread(end_event, hw_queue, loop_diagnostics=None) -> None:
     statlog.sample("power_draw", current_power_draw)
     msg.deviceState.powerDrawW = current_power_draw
 
-    som_power_draw = HARDWARE.get_som_power_draw()
-    statlog.sample("som_power_draw", som_power_draw)
-    msg.deviceState.somPowerDrawW = som_power_draw
+    # BMS current_now can block inside the kernel for seconds. It is only power
+    # telemetry: never let it stall temperature, ignition or deviceState updates.
+    som_power_draw = som_power_telemetry.get() if som_power_telemetry is not None else None
+    if som_power_draw is not None:
+      statlog.sample("som_power_draw", som_power_draw)
+    # Keep the existing unavailable/default convention; do not log stale data
+    # or an unavailable zero as a newly measured power sample.
+    msg.deviceState.somPowerDrawW = som_power_draw if som_power_draw is not None else 0.
 
     # Check if we need to shut down
     if power_monitor.should_shutdown(onroad_conditions["ignition"], in_car, off_ts, started_seen):
@@ -532,7 +538,12 @@ def main():
   hw_queue = queue.Queue(maxsize=1)
   end_event = threading.Event()
   loop_diagnostics = HardwareLoopDiagnostics()
-  status_thread = threading.Thread(target=hardware_thread, args=(end_event, hw_queue, loop_diagnostics))
+  som_power_telemetry = SomPowerTelemetry(HARDWARE.get_som_power_draw)
+  status_thread = threading.Thread(target=hardware_thread, args=(end_event, hw_queue, loop_diagnostics, som_power_telemetry))
+
+  # One optional reader only. A wedged sensor must not fail the critical thread
+  # health check or hold up process shutdown waiting for this daemon to join.
+  threading.Thread(target=som_power_telemetry.run, args=(end_event,), daemon=True, name='som-power-telemetry').start()
 
   threads = [
     threading.Thread(target=hw_state_thread, args=(end_event, hw_queue)),
