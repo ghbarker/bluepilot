@@ -553,7 +553,8 @@ def main():
       try:
         if diagnostic := loop_diagnostics.poll(status_thread.ident):
           event = diagnostic.pop('event')
-          cloudlog.event(event, **diagnostic)
+          # Error-level events are retained in compact qlogs as well as rlogs.
+          cloudlog.event(event, error=True, **diagnostic)
       except Exception:
         # Observation must not terminate the supervisor or hardware worker.
         pass

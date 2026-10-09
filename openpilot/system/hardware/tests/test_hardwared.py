@@ -147,8 +147,8 @@ def test_status_loop_keeps_publishing_with_pending_statistics(monkeypatch, devic
   assert any(p['thermal'] == 'critical' for p in published)
 
 
-@pytest.mark.parametrize('failure', ['poll', 'log'])
-def test_diagnostic_failure_does_not_stop_supervision(monkeypatch, failure):
+@pytest.mark.parametrize('failure', [None, 'poll', 'log'])
+def test_diagnostic_outcomes_do_not_stop_supervision(monkeypatch, failure):
   made_threads = []
   sleeps = []
 
@@ -164,13 +164,16 @@ def test_diagnostic_failure_does_not_stop_supervision(monkeypatch, failure):
     monitor.poll.side_effect = RuntimeError('diagnostic unavailable')
   else:
     monitor.poll.return_value = {'event': 'hardwareStatusStalled'}
-    logger.event.side_effect = RuntimeError('logging unavailable')
+    if failure == 'log':
+      logger.event.side_effect = RuntimeError('logging unavailable')
   monkeypatch.setattr(hardwared.threading, 'Thread', thread)
   monkeypatch.setattr(hardwared.time, 'sleep', lambda _: sleeps.append(True))
   monkeypatch.setattr(hardwared, 'COMMA_HARDWARE', False)
   monkeypatch.setattr(hardwared, 'HardwareLoopDiagnostics', lambda: monitor)
   monkeypatch.setattr(hardwared, 'cloudlog', logger)
   hardwared.main()
+  if failure is None:
+    logger.event.assert_called_once_with('hardwareStatusStalled', error=True)
   assert len(sleeps) == 2
   assert len(made_threads) == 2
   for item in made_threads:
