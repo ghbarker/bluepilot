@@ -9,11 +9,9 @@ See the LICENSE.md file in the root directory for more details.
 #
 # The shadow value is consumed by carcontroller as the input to ford.h's angle-mode
 # deviation check (Lane_Assist_Data1 bytes 5-6, judged against angle_meas). These tests
-# pin the truthfulness contract: whenever the planner kappa cannot honestly describe the
-# car's steering -- inactive, human-turn override, driver pressing -- the
-# published shadow must equal the measured curvature, so the panda-latched value always
-# stays inside the check's band and re-engage frames never compare a stale zero against
-# real measured curvature.
+# pin the command contract: active requests publish the limited curvature used to
+# derive path_angle, including during driver contact. Inactive/human-turn yield
+# sends mode zero and resets the reference to measured curvature.
 
 import math
 import unittest
@@ -209,11 +207,12 @@ class TestShadowCurvaturePublishing(unittest.TestCase):
     self.assertEqual(self.ext.stall_blip_frames_left, 2)
     self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
-  def test_pressed_publishes_measured(self):
+  def test_pressed_publishes_limited_command(self):
     self.cs.out.steeringPressed = True
     self._update()
     self.assertFalse(self.ext.angle_human_turn_active)
-    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
+    self.assertAlmostEqual(self.ext.bp_kappa_cmd, self.measured + CarControllerParams.CURVATURE_ERROR)
+    self.assertNotAlmostEqual(self.ext.bp_kappa_cmd, self.measured)
 
   def test_hands_off_publishes_clipped_planner_kappa(self):
     # planner wants +0.01 while measured is -0.05: the deviation clip (active above 9 m/s)

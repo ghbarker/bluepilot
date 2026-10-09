@@ -158,8 +158,7 @@ def test_mach_e_correction_release_preserves_steering(direction, speed, exit_cur
     assert not corrected.angle_stall_blip_active
     assert not corrected.angle_human_turn_active
     assert corrected.stall_blip_frames_left == 0
-    if not cs.out.steeringPressed:
-      assert corrected.bp_kappa_cmd == untouched.bp_kappa_cmd
+    assert corrected.bp_kappa_cmd == untouched.bp_kappa_cmd
   assert corrected.stall_blip_count == 0
   assert result.path_angle * direction * (-1 if exit_curve else 1) > 0.
 

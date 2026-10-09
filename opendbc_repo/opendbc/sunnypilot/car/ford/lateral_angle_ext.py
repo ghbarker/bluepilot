@@ -632,13 +632,12 @@ class LateralAngleExt:
     # BluePilot: the error-clipped kappa path_angle was derived from -- carcontroller.py reads this
     # as shadow_curvature for ford.h's angle-mode deviation check (see fordcan_ext.create_lka_msg).
     # Not just telemetry: an actively-consumed value, unlike the removed *_kappa_cmd_raw stubs.
-    # While the driver is pressing (before the human-turn override latches), the clipped planner
-    # kappa can't follow the wheel: the driver moves the measured curvature faster than the
-    # deviation clip tracks it, so the shadow can exit ford.h's error band mid-curve -- the one
-    # in-drive lateral safety block observed across ~3h of replayed road-test routes was exactly
-    # this (driver fighting a sustained curve with the mode still enabled). The honest command
-    # during a press is the driver's actual curvature.
-    self.bp_kappa_cmd = self.get_current_curvature(CS) if CS.out.steeringPressed else kappa_cmd
+    # A driver press does not change what this active request was derived from.
+    # Substituting measured curvature mislabels a manual turn as automated intent:
+    # it can both reject an in-range request and conceal an out-of-range request.
+    # Panda independently measures steering and applies its unchanged deviation
+    # and acceleration checks. Inactive/yield paths above still send mode zero.
+    self.bp_kappa_cmd = kappa_cmd
 
     # BluePilot: would the equivalent curvature (kappa_cmd) have been rate-limited by curvature-mode's
     # ROC (apply_std_steer_angle_limits)? kappa_cmd is already error-clipped above (same clip

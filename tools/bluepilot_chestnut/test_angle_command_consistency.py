@@ -14,7 +14,7 @@ from opendbc.car import structs, Bus
 from opendbc.car.ford.values import CAR, CarControllerParams
 from opendbc.car.vehicle_model import VehicleModel
 from opendbc.safety.tests import test_ford_bluepilot as ford
-from opendbc.sunnypilot.car.ford.tests.test_lateral_angle_ext import _Harness, _CS, _CC, _Actuators
+from opendbc.sunnypilot.car.ford.tests.test_lateral_angle_ext import _Harness, _CS, _CC, _Actuators, _ForcedDetector
 from opendbc.sunnypilot.car.ford.values_ext import FordSafetyFlagsSP, FORD_PINION_GEOMETRY_INDEX
 from openpilot.common.params import Params
 
@@ -179,3 +179,43 @@ def test_fresh_status_cannot_hide_an_acceleration_limit_violation():
   assert safety._tx(safety._lat_ctl_msg(True, 0., 0.01, 0., 0.))
   assert safety._tx(safety._lka_bp_status_msg(True, 0.0081))
   assert not safety._tx(safety._lat_ctl_msg(True, 0., 0.01, 0., 0.))
+
+
+@pytest.mark.parametrize('sign', [-1, 1])
+@pytest.mark.parametrize('speed,manual_curvature,safe_measurement', [(21., .0099, .0080), (30., .0052, .0035), (40., .0034, .0015)])
+@pytest.mark.parametrize('command_safe', [False, True])
+def test_driver_contact_reports_command_not_manual_turn(sign, speed, manual_curvature, safe_measurement, command_safe):
+  ext, cp, cs = harness(sign)
+  # Isolate driver contact before deliberate human-turn yield; that detector
+  # retains separate release/yield tests and still sends mode zero when active.
+  ext.human_turn_detector = _ForcedDetector(False)
+  ext.lp = SimpleNamespace(angleOffsetDeg=0., roll=0.)
+  ext.VM.update_params(1., cp.steerRatio)
+  measured = sign * (manual_curvature if command_safe else safe_measurement)
+  cs.out.vEgoRaw = cs.out.vEgo = speed
+  cs.out.steeringAngleDeg = math.degrees(ext.VM.get_steer_from_curvature(-measured, speed, 0.))
+  cs.out.steeringPressed = True
+  requested = 0. if command_safe else sign * .02
+  for _ in range(80):
+    result = ext.update_angle_strategy(_CC(), cs, _Actuators(requested), cp)
+  assert not ext.angle_human_turn_active
+  assert result.path_angle == pytest.approx(ext.bp_kappa_cmd * speed * ext.curvature_factor)
+  assert ext.bp_kappa_cmd != pytest.approx(measured)
+
+  def check(shadow):
+    safety = MachEPinionSafety()
+    safety.setUp()
+    safety.safety.set_controls_allowed(True)
+    safety._reset_curvature_measurement(-ext.get_safety_curvature(cs), speed)
+    assert safety._tx(safety._lka_bp_status_msg(True, -shadow))
+    # Ramp to the actual controller result, respecting the existing actuator
+    # rate. Both shadow alternatives face the same command and measurements.
+    steps = math.ceil(abs(result.path_angle) / .005) + 1
+    accepted = [safety._tx(safety._lat_ctl_msg(True, 0., -result.path_angle * step / steps, 0., 0.))
+                for step in range(steps + 1)]
+    return all(accepted)
+
+  assert check(ext.bp_kappa_cmd) == command_safe
+  # The former measured substitution inverted both decisions: a sharp manual
+  # turn blocked an in-range request, while a mild manual turn hid an unsafe one.
+  assert check(measured) != command_safe
